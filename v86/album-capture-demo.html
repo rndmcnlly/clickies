@@ -1,160 +1,22 @@
 <!DOCTYPE html>
-<title>Album Capturer</title>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Album Capturer</title>
 
-<style>
-  body {
-    font-family: sans-serif;
-    padding: 20px;
-    background: #f0f0f0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
+  <link rel="stylesheet" href="album-style.css">
 
-  h1 {
-    margin-top: 0;
-    color: #333;
-  }
+  <script src="libv86.js"></script>
 
-  /* Instructions Card */
-  #instructions {
-    width: 80%;
-    max-width: 1280px;
-    background: #fff;
-    padding: 15px 20px;
-    border-radius: 15px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    margin-bottom: 20px;
-    margin-top: 10px;
-    color: #555;
-    font-size: 0.95em;
-    line-height: 1.5;
-  }
+  <script src="https://cdn.jsdelivr.net/npm/@msgpack/msgpack@3.1.1/dist/umd/msgpack.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fast-json-patch@3.1.1/dist/fast-json-patch.min.js"></script>
 
-  #instructions h3 {
-    margin-top: 0;
-    margin-bottom: 10px;
-    color: #007bff;
-  }
+  <script src="../savestreams_updated.js"></script>
 
-  #instructions ul {
-    margin: 0;
-    padding-left: 20px;
-  }
-
-  #instructions li {
-    margin-bottom: 5px;
-  }
-
-  /* Main Emulator Wrapper */
-  #player-wrapper {
-    position: relative;
-    width: 80%; 
-    max-width: 1280px; 
-    aspect-ratio: 720 / 400;
-    background: #000;
-    border-radius: 8px;
-    overflow: hidden;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-  }
-
-  #screen_container {
-    width: 100%;
-    height: 100%;
-  }
-
-  #screen_container canvas {
-    width: 100% !important;
-    height: 100% !important;
-    object-fit: contain !important;
-    display: block;
-  }
-
-  /* Controls Bar */
-  #controls {
-    margin-top: 15px;
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    width: 80%;
-    max-width: 1280px; 
-    background: white;
-    padding: 10px 20px;
-    border-radius: 15px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    box-sizing: border-box;
-  }
-
-  input[type="button"] {
-    padding: 10px 20px;
-    border-radius: 20px;
-    border: none;
-    background-color: #007bff;
-    color: white;
-    font-weight: bold;
-    cursor: pointer;
-    transition: background 0.2s, transform 0.1s;
-    font-size: 14px;
-  }
-
-  input[type="button"]:disabled {
-    background-color: #ccc;
-    cursor: not-allowed;
-    transform: none;
-  }
-
-  input[type="button"]:hover:not(:disabled) {
-    background-color: #0056b3;
-  }
-
-  input[type="button"]:active:not(:disabled) {
-    transform: scale(0.98);
-  }
-
-  /* Record Button Specifics */
-  #record {
-    background-color: #28a745; /* Green for start */
-    min-width: 150px;
-  }
-
-  #record.recording {
-    background-color: #dc3545; /* Red for stop */
-    animation: pulse 2s infinite;
-  }
-
-  @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
-    70% { box-shadow: 0 0 0 10px rgba(220, 53, 69, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
-  }
-
-  #status {
-    flex-grow: 1;
-    text-align: right;
-    font-family: monospace;
-    color: #666;
-    font-size: 0.9em;
-  }
-
-  input[type="range"] {
-    cursor: pointer;
-  }
-  
-  /* Ensure the label doesn't break layout */
-  label {
-    user-select: none;
-  }
-
-</style>
-
-<script src="libv86.js"></script>
-
-<script src="https://cdn.jsdelivr.net/npm/@msgpack/msgpack@3.1.1/dist.umd/msgpack.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/fast-json-patch@3.1.1/dist/fast-json-patch.min.js"></script>
-
-<script src="../savestreams_updated.js"></script>
-
-<script src="album_capturer.js"></script>
+  <script src="album_capturer.js"></script>
+</head>
+<body>
 
 <script>
   "use strict";
@@ -266,6 +128,15 @@
   };
 </script>
 
+<div id="browser-warning">
+    <strong>⚠️ Browser Compatibility Warning:</strong> This application requires the 
+    <code>window.showDirectoryPicker</code> API (File System Access), which is not supported in your current browser. 
+    <br>
+    Please use a desktop version of <strong>Chrome, Edge, or Opera</strong>.
+    <br>
+    <a href="https://developer.mozilla.org/en-US/docs/Web/API/Window/showDirectoryPicker" target="_blank">Learn more at MDN</a>.
+</div>
+
 <h1>Album Capturer</h1>
 
 <div id="instructions">
@@ -296,3 +167,13 @@
 
   <span id="status">Waiting for emulator...</span>
 </div>
+
+<script>
+    // Check for File System Access API support
+    if (!('showDirectoryPicker' in window)) {
+        document.getElementById('browser-warning').style.display = 'block';
+    }
+</script>
+
+</body>
+</html>

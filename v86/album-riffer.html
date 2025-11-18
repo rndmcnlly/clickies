@@ -1,486 +1,277 @@
 <!doctype html>
-<title>Album Riffer</title>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Album Riffer</title>
 
-<style>
-  body {
-    font-family: sans-serif;
-    padding: 20px;
-    background: #f0f0f0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
+    <link rel="stylesheet" href="album-style.css">
 
-  h1 {
-    margin-top: 0;
-    color: #333;
-  }
+    <script src="libv86.js"></script>
 
-  /* Instructions Card */
-  #instructions {
-    width: 80%;
-    max-width: 1280;
-    background: #fff;
-    padding: 15px 20px;
-    border-radius: 15px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    margin-bottom: 20px;
-    color: #555;
-    font-size: 0.95em;
-    line-height: 1.5;
-    box-sizing: border-box;
-  }
+    <script src="https://cdn.jsdelivr.net/npm/@msgpack/msgpack@3.1.1/dist/umd/msgpack.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fast-json-patch@3.1.1/dist/fast-json-patch.min.js"></script>
 
-  #instructions h3 {
-    margin-top: 0;
-    margin-bottom: 10px;
-    color: #007bff;
-  }
-
-  #instructions ul {
-    margin: 0;
-    padding-left: 20px;
-  }
-
-  #instructions li {
-    margin-bottom: 5px;
-  }
-
-  /* Main Wrapper */
-  #player-wrapper {
-    position: relative;
-    width: 80%;
-    max-width: 1280px;
-    aspect-ratio: 720 / 400;
-    background: #000;
-    border-radius: 8px;
-    overflow: hidden;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-    transition: width 0.3s ease;
-  }
-
-  #responseVideo, #screen_container {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-  }
-
-  #responseVideo {
-    z-index: 10;
-    display: block;
-    object-fit: contain;
-  }
-
-  /* Subtitle styling for JSON overlay */
-  video::cue {
-    background: rgba(0, 0, 0, 0.7);
-    color: #0f0;
-    font-family: monospace;
-    font-size: 14px;
-    white-space: pre-wrap; 
-  }
-
-  #screen_container {
-    z-index: 5;
-    display: none;
-  }
-  
-  #screen_container canvas {
-    width: 100% !important;
-    height: 100% !important;
-    object-fit: contain !important;
-    display: block;
-  }
-  
-  #screen_container.active {
-    display: block;
-    z-index: 20;
-  }
-
-  /* Control Bar */
-  #controls {
-    margin-top: 15px;
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    width: 80%;
-    max-width: 1280px;
-    background: white;
-    padding: 10px 20px;
-    border-radius: 15px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    box-sizing: border-box;
-    flex-wrap: wrap;
-  }
-
-  /* Buttons */
-  input[type="button"], button {
-    padding: 10px 20px;
-    border-radius: 20px;
-    border: none;
-    background-color: #007bff;
-    color: white;
-    font-weight: bold;
-    cursor: pointer;
-    transition: background 0.2s, transform 0.1s;
-    font-size: 14px;
-  }
-
-  input[type="button"]:disabled, button:disabled {
-    background-color: #ccc;
-    cursor: not-allowed;
-    transform: none;
-  }
-
-  input[type="button"]:hover:not(:disabled), button:hover:not(:disabled) {
-    background-color: #0056b3;
-  }
-
-  input[type="button"]:active:not(:disabled), button:active:not(:disabled) {
-    transform: scale(0.98);
-  }
-
-  #interactionBtn {
-    background-color: #28a745; /* Green for go */
-    min-width: 160px;
-  }
-  
-  #interactionBtn.return-mode {
-    background-color: #dc3545; /* Red for return */
-  }
-  #interactionBtn.return-mode:hover {
-    background-color: #a71d2a;
-  }
-
-  /* Dropdown styling */
-  select {
-    padding: 8px;
-    border-radius: 5px;
-    border: 1px solid #ccc;
-    font-size: 14px;
-  }
-
-  /* Developer Menu */
-  #debug-section {
-    width: 80%;
-    max-width: 1280px;
-    margin-top: 15px;
-    box-sizing: border-box;
-  }
-  
-  details {
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    padding: 5px 10px;
-    background: #e0e0e0;
-  }
-  
-  summary {
-    cursor: pointer;
-    font-weight: bold;
-    color: #333;
-    font-size: 0.9em;
-    list-style: none; /* Hide default triangle */
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  
-  summary::after {
-    content: '+'; 
-    font-size: 1.2em;
-  }
-  
-  details[open] summary::after {
-    content: '-';
-  }
-  
-  #stimulusContent, #statusDisplay {
-    display: block;
-    margin-top: 10px;
-    padding: 10px;
-    background: #fff;
-    border: 1px solid #999;
-    border-radius: 4px;
-    font-family: monospace;
-    font-size: 0.8em;
-    white-space: pre-wrap;
-    max-height: 300px;
-    overflow-y: auto;
-    color: #000;
-  }
-  
-  #statusDisplay {
-    border: none;
-    background: transparent;
-    padding: 0;
-    margin: 0 0 10px 0;
-    color: #555;
-    font-size: 1em;
-  }
-
-  .hidden {
-    display: none !important;
-  }
-</style>
-
-<script src="libv86.js"></script>
-
-<script src="https://cdn.jsdelivr.net/npm/@msgpack/msgpack@3.1.1/dist.umd/msgpack.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/fast-json-patch@3.1.1/dist/fast-json-patch.min.js"></script>
-
-<script src="../savestreams_updated.js"></script>
-
+    <script src="../savestreams_updated.js"></script>
+</head>
+<body>
 
 <script>
-"use strict";
+    "use strict";
 
-window.onload = function()
-{
-  let manifest = {};
-  let dirHandle;
-  let subDirHandle;
-  let savestreamBuffer = null;
-  let currentVideoStateIndex = -1;
-  let isEmulatorActive = false;
+    window.onload = function () {
+        let manifest = {};
+        let dirHandle;
+        let subDirHandle;
+        let savestreamBuffer = null;
+        let currentVideoStateIndex = -1;
+        let isEmulatorActive = false;
 
-  // UI Elements
-  const loadButton = document.getElementById("loadAlbumButton");
-  const dropdown = document.getElementById("manifestDropdown");
-  const videoPlayer = document.getElementById("responseVideo");
-  const track = document.getElementById("stimulusTrack");
-  const displayElement = document.getElementById("statusDisplay");
-  const screenContainer = document.getElementById("screen_container");
-  const interactionBtn = document.getElementById("interactionBtn");
-  const stimulusContent = document.getElementById("stimulusContent");
-  
-  // Resizing Logic
-  const scaleInput = document.getElementById("scaleInput");
-  const playerWrapper = document.getElementById("player-wrapper");
-  const controlsWrapper = document.getElementById("controls");
-  const debugWrapper = document.getElementById("debug-section");
-  const instructionsWrapper = document.getElementById("instructions");
+        // UI Elements
+        const loadButton = document.getElementById("loadAlbumButton");
+        const dropdown = document.getElementById("manifestDropdown");
+        const videoPlayer = document.getElementById("responseVideo");
+        const track = document.getElementById("stimulusTrack");
+        const displayElement = document.getElementById("statusDisplay");
+        const screenContainer = document.getElementById("screen_container");
+        const interactionBtn = document.getElementById("interactionBtn");
+        const stimulusContent = document.getElementById("stimulusContent");
 
-  scaleInput.addEventListener("input", () => {
-      const widthVal = scaleInput.value + "%";
-      playerWrapper.style.width = widthVal;
-      controlsWrapper.style.width = widthVal;
-      debugWrapper.style.width = widthVal;
-      
-      // Allow growing beyond default constraints if user wants
-      if(scaleInput.value > 80) {
-          playerWrapper.style.maxWidth = "none";
-          controlsWrapper.style.maxWidth = "none";
-          debugWrapper.style.maxWidth = "none";
-          instructionsWrapper.style.maxWidth = "none";
-      }
-  });
+        // Resizing Logic
+        const scaleInput = document.getElementById("scaleInput");
+        const playerWrapper = document.getElementById("player-wrapper");
+        const controlsWrapper = document.getElementById("controls");
+        const debugWrapper = document.getElementById("debug-section");
+        const instructionsWrapper = document.getElementById("instructions");
 
-  let emulator = null;
+        scaleInput.addEventListener("input", () => {
+            const widthVal = scaleInput.value + "%";
+            playerWrapper.style.width = widthVal;
+            controlsWrapper.style.width = widthVal;
+            debugWrapper.style.width = widthVal;
 
-  // --- 1. Initialize Emulator ---
-  async function createEmulator() {
-    if(emulator) emulator.destroy();
-
-    const machine_spec = structuredClone(manifest.machine_spec);
-    machine_spec.screen_container = screenContainer;
-    
-    emulator = window.emulator = new V86(machine_spec);
-    
-    screenContainer.addEventListener("click", () => {
-        if (emulator && isEmulatorActive) {
-            emulator.lock_mouse();
-        }
-    });
-  }
-    
-  // --- 2. Load Album ---
-  loadButton.addEventListener('click', async () => {
-    loadButton.blur();
-    try {
-      dirHandle = await window.showDirectoryPicker();
-      let handle = await dirHandle.getFileHandle("manifest.json");
-      let manifestFile = await handle.getFile();
-      manifest = JSON.parse(await manifestFile.text());
-      
-      await createEmulator();
-      
-      dropdown.innerHTML = '<option disabled selected>Choose clip</option>';
-      if(manifest.clips && manifest.clips.length > 0) {
-        for (let clip of manifest.clips) {
-          const option = document.createElement("option");
-          option.textContent = clip["id"];
-          dropdown.appendChild(option);
-        }
-        dropdown.value = manifest.clips[0].id;
-        loadButton.value = "📂 Album Loaded";
-        loadButton.disabled = true;
-        await loadClip(manifest.clips[0].id);
-      }
-    } catch (err) {
-      console.error("Error loading album:", err);
-      alert("Could not load album. Check console.");
-    }
-  });
-  
-  dropdown.addEventListener("change", async function () {
-    this.blur();
-    await loadClip(this.value);
-  });
-  
-  // --- 3. Load Clip Assets ---
-  async function loadClip(selectedFolderName) {
-      try {
-        switchToVideoMode(false); 
-        savestreamBuffer = null;
-        currentVideoStateIndex = -1;
-        displayElement.textContent = "Loading media...";
-        stimulusContent.textContent = "Loading VTT...";
-
-        subDirHandle = await dirHandle.getDirectoryHandle(selectedFolderName);
-
-        // Load Video
-        const videoHandle = await subDirHandle.getFileHandle("response.webm");
-        const videoFile = await videoHandle.getFile();
-        videoPlayer.src = URL.createObjectURL(videoFile);
-        
-        // Load Stimulus (Subtitles)
-        try {
-          const stimHandle = await subDirHandle.getFileHandle("stimulus.vtt");
-          const stimFile = await stimHandle.getFile();
-          
-          track.src = URL.createObjectURL(stimFile);
-          track.default = true;
-          
-          const vttText = await stimFile.text();
-          stimulusContent.textContent = vttText;
-
-        } catch {
-          console.warn("stimulus.vtt not found");
-          track.removeAttribute("src");
-          stimulusContent.textContent = "No stimulus.vtt found.";
-        }
-        
-        // Load Savestream
-        try {
-          const ssHandle = await subDirHandle.getFileHandle("states.savestream");
-          const ssFile = await ssHandle.getFile();
-          savestreamBuffer = new Uint8Array(await ssFile.arrayBuffer());
-          console.log(`Loaded savestream (${savestreamBuffer.byteLength} bytes)`);
-          
-          interactionBtn.disabled = false;
-          displayElement.textContent = "Ready.";
-        } catch {
-          console.warn("states.savestream not found");
-          displayElement.textContent = "Read-only (No savestream found)";
-          interactionBtn.disabled = true;
-        }
-
-        // Show subtitles and play
-        videoPlayer.textTracks[0].mode = "showing"; 
-        await videoPlayer.play(); 
-
-      } catch (err) {
-        console.error("Failed to load clip:", err);
-      } 
-  }
-  
-  // --- 4. Sync Video Time to State Index ---
-  videoPlayer.addEventListener("timeupdate", () => {
-    if (!savestreamBuffer || isEmulatorActive) return;
-
-    const currentTime = videoPlayer.currentTime;
-    const activeCues = track.track.cues; 
-    
-    if (!activeCues || activeCues.length === 0) return;
-
-    let foundIndex = -1;
-    for (let i = activeCues.length - 1; i >= 0; i--) {
-      const cue = activeCues[i];
-      if (cue.startTime <= currentTime) {
-        try {
-            const data = JSON.parse(cue.text);
-            if (data.event && data.event.name === "save-state") {
-                foundIndex = data.event.index;
-                break; 
+            // Allow growing beyond default constraints if user wants
+            if (scaleInput.value > 80) {
+                playerWrapper.style.maxWidth = "none";
+                controlsWrapper.style.maxWidth = "none";
+                debugWrapper.style.maxWidth = "none";
+                instructionsWrapper.style.maxWidth = "none";
             }
-        } catch (e) {}
-      }
+        });
+
+        let emulator = null;
+
+        // --- 1. Initialize Emulator ---
+        async function createEmulator() {
+            if (emulator) emulator.destroy();
+
+            const machine_spec = structuredClone(manifest.machine_spec);
+            machine_spec.screen_container = screenContainer;
+
+            emulator = window.emulator = new V86(machine_spec);
+
+            screenContainer.addEventListener("click", () => {
+                if (emulator && isEmulatorActive) {
+                    emulator.lock_mouse();
+                }
+            });
+        }
+
+        // --- 2. Load Album ---
+        loadButton.addEventListener('click', async () => {
+            loadButton.blur();
+            try {
+                dirHandle = await window.showDirectoryPicker();
+                let handle = await dirHandle.getFileHandle("manifest.json");
+                let manifestFile = await handle.getFile();
+                manifest = JSON.parse(await manifestFile.text());
+
+                await createEmulator();
+
+                dropdown.innerHTML = '<option disabled selected>Choose clip</option>';
+                if (manifest.clips && manifest.clips.length > 0) {
+                    for (let clip of manifest.clips) {
+                        const option = document.createElement("option");
+                        option.textContent = clip["id"];
+                        dropdown.appendChild(option);
+                    }
+                    dropdown.value = manifest.clips[0].id;
+                    loadButton.value = "📂 Album Loaded";
+                    loadButton.disabled = true;
+                    await loadClip(manifest.clips[0].id);
+                }
+            } catch (err) {
+                console.error("Error loading album:", err);
+                alert("Could not load album. Check console.");
+            }
+        });
+
+        dropdown.addEventListener("change", async function () {
+            this.blur();
+            await loadClip(this.value);
+        });
+
+        // --- 3. Load Clip Assets ---
+        async function loadClip(selectedFolderName) {
+            try {
+                switchToVideoMode(false);
+                savestreamBuffer = null;
+                currentVideoStateIndex = -1;
+                displayElement.textContent = "Loading media...";
+                stimulusContent.textContent = "Loading VTT...";
+
+                subDirHandle = await dirHandle.getDirectoryHandle(selectedFolderName);
+
+                // Load Video
+                const videoHandle = await subDirHandle.getFileHandle("response.webm");
+                const videoFile = await videoHandle.getFile();
+                videoPlayer.src = URL.createObjectURL(videoFile);
+
+                // Load Stimulus (Subtitles)
+                try {
+                    const stimHandle = await subDirHandle.getFileHandle("stimulus.vtt");
+                    const stimFile = await stimHandle.getFile();
+
+                    track.src = URL.createObjectURL(stimFile);
+                    track.default = true;
+
+                    const vttText = await stimFile.text();
+                    stimulusContent.textContent = vttText;
+
+                } catch {
+                    console.warn("stimulus.vtt not found");
+                    track.removeAttribute("src");
+                    stimulusContent.textContent = "No stimulus.vtt found.";
+                }
+
+                // Load Savestream
+                try {
+                    const ssHandle = await subDirHandle.getFileHandle("states.savestream");
+                    const ssFile = await ssHandle.getFile();
+                    savestreamBuffer = new Uint8Array(await ssFile.arrayBuffer());
+                    console.log(`Loaded savestream (${savestreamBuffer.byteLength} bytes)`);
+
+                    interactionBtn.disabled = false;
+                    displayElement.textContent = "Ready.";
+                } catch {
+                    console.warn("states.savestream not found");
+                    displayElement.textContent = "Read-only (No savestream found)";
+                    interactionBtn.disabled = true;
+                }
+
+                // Show subtitles and play
+                videoPlayer.textTracks[0].mode = "showing";
+                await videoPlayer.play();
+
+            } catch (err) {
+                console.error("Failed to load clip:", err);
+            }
+        }
+
+        // --- 4. Sync Video Time to State Index ---
+        videoPlayer.addEventListener("timeupdate", () => {
+            if (!savestreamBuffer || isEmulatorActive) return;
+
+            const currentTime = videoPlayer.currentTime;
+            const activeCues = track.track.cues;
+
+            if (!activeCues || activeCues.length === 0) return;
+
+            let foundIndex = -1;
+            for (let i = activeCues.length - 1; i >= 0; i--) {
+                const cue = activeCues[i];
+                if (cue.startTime <= currentTime) {
+                    try {
+                        const data = JSON.parse(cue.text);
+                        if (data.event && data.event.name === "save-state") {
+                            foundIndex = data.event.index;
+                            break;
+                        }
+                    } catch (e) { }
+                }
+            }
+
+            currentVideoStateIndex = foundIndex;
+
+            if (currentVideoStateIndex > -1) {
+                displayElement.textContent = `Sync: State #${currentVideoStateIndex} available at ${currentTime.toFixed(2)}s`;
+            } else {
+                displayElement.textContent = "Waiting for first state...";
+            }
+        });
+
+        // --- 5. Toggle Interaction Mode ---
+        interactionBtn.addEventListener("click", async () => {
+            interactionBtn.blur();
+            if (isEmulatorActive) {
+                switchToVideoMode(true); // Play on return
+            } else {
+                switchToEmulatorMode();
+            }
+        });
+
+        async function switchToEmulatorMode() {
+            if (currentVideoStateIndex === -1) {
+                alert("No state available yet. Wait for the video to play a bit further.");
+                return;
+            }
+
+            // Pause Video
+            videoPlayer.pause();
+            displayElement.textContent = `Restoring state #${currentVideoStateIndex}...`;
+            interactionBtn.disabled = true;
+
+            try {
+                const stateBuffer = await window.v86Savestream.decodeOne(savestreamBuffer, currentVideoStateIndex);
+                await emulator.restore_state(stateBuffer);
+
+                videoPlayer.classList.add("hidden");
+                screenContainer.classList.add("active");
+
+                isEmulatorActive = true;
+                interactionBtn.textContent = "↩️ Return to Video";
+                interactionBtn.classList.add("return-mode");
+                interactionBtn.disabled = false;
+
+                emulator.run();
+                displayElement.textContent = "Interactive Mode Active. Click screen to lock mouse.";
+
+            } catch (err) {
+                console.error("Restore failed:", err);
+                alert("Failed to restore emulator state.");
+                switchToVideoMode(true);
+            }
+        }
+
+        function switchToVideoMode(autoPlay = false) {
+            if (emulator) emulator.stop();
+
+            screenContainer.classList.remove("active");
+            videoPlayer.classList.remove("hidden");
+
+            interactionBtn.textContent = "👋 Take Control";
+            interactionBtn.classList.remove("return-mode");
+            interactionBtn.disabled = false;
+
+            isEmulatorActive = false;
+            displayElement.textContent = "Video Mode";
+
+            if (autoPlay) {
+                videoPlayer.play();
+            }
+        }
     }
-
-    currentVideoStateIndex = foundIndex;
-    
-    if(currentVideoStateIndex > -1) {
-        displayElement.textContent = `Sync: State #${currentVideoStateIndex} available at ${currentTime.toFixed(2)}s`;
-    } else {
-        displayElement.textContent = "Waiting for first state...";
-    }
-  });
-
-  // --- 5. Toggle Interaction Mode ---
-  interactionBtn.addEventListener("click", async () => {
-    interactionBtn.blur();
-    if (isEmulatorActive) {
-        switchToVideoMode(true); // Play on return
-    } else {
-        switchToEmulatorMode();
-    }
-  });
-
-  async function switchToEmulatorMode() {
-    if (currentVideoStateIndex === -1) {
-        alert("No state available yet. Wait for the video to play a bit further.");
-        return;
-    }
-
-    // Pause Video
-    videoPlayer.pause();
-    displayElement.textContent = `Restoring state #${currentVideoStateIndex}...`;
-    interactionBtn.disabled = true;
-
-    try {
-        const stateBuffer = await window.v86Savestream.decodeOne(savestreamBuffer, currentVideoStateIndex);
-        await emulator.restore_state(stateBuffer);
-        
-        videoPlayer.classList.add("hidden");
-        screenContainer.classList.add("active");
-        
-        isEmulatorActive = true;
-        interactionBtn.textContent = "↩️ Return to Video";
-        interactionBtn.classList.add("return-mode");
-        interactionBtn.disabled = false;
-
-        emulator.run();
-        displayElement.textContent = "Interactive Mode Active. Click screen to lock mouse.";
-
-    } catch (err) {
-        console.error("Restore failed:", err);
-        alert("Failed to restore emulator state.");
-        switchToVideoMode(true);
-    }
-  }
-
-  function switchToVideoMode(autoPlay = false) {
-    if(emulator) emulator.stop();
-    
-    screenContainer.classList.remove("active");
-    videoPlayer.classList.remove("hidden");
-    
-    interactionBtn.textContent = "👋 Take Control";
-    interactionBtn.classList.remove("return-mode");
-    interactionBtn.disabled = false;
-    
-    isEmulatorActive = false;
-    displayElement.textContent = "Video Mode";
-
-    if(autoPlay) {
-        videoPlayer.play();
-    }
-  }
-}
 </script>
+
+<div id="browser-warning">
+    <strong>⚠️ Browser Compatibility Warning:</strong> This application requires the
+    <code>window.showDirectoryPicker</code> API (File System Access), which is not supported in your current browser.
+    <br>
+    Please use a desktop version of <strong>Chrome, Edge, or Opera</strong>.
+    <br>
+    <a href="https://developer.mozilla.org/en-US/docs/Web/API/Window/showDirectoryPicker" target="_blank">Learn more at
+        MDN</a>.
+</div>
 
 <h1>Album Riffer</h1>
 
@@ -491,16 +282,19 @@ window.onload = function()
         <li><strong>Step 2:</strong> Use the dropdown to select a specific recording clip.</li>
         <li><strong>Step 3:</strong> Watch the video! You'll see inputs and state events in the subtitles.</li>
         <li><strong>Step 4:</strong> See something interesting? Click <strong>"👋 Take Control"</strong>.</li>
-        <li><strong>Step 5:</strong> The video will pause, and the emulator will take over at that exact moment. <em>Click to lock mouse!</em></li>
-        <li><strong>Step 6:</strong> When done experimenting, click <strong>"↩️ Return to Video"</strong> to resume playback.</li>
+        <li><strong>Step 5:</strong> The video will pause, and the emulator will take over at that exact moment.
+            <em>Click to lock mouse!</em></li>
+        <li><strong>Step 6:</strong> When done experimenting, click <strong>"↩️ Return to Video"</strong> to resume
+            playback.</li>
     </ul>
 </div>
 
 <div id="player-wrapper">
-    <video id="responseVideo" type="video/webm" controls controlsList="nofullscreen nodownload noremoteplayback" disablePictureInPicture>
-      <track id="stimulusTrack" kind="subtitles" default>
+    <video id="responseVideo" type="video/webm" controls controlsList="nofullscreen nodownload noremoteplayback"
+        disablePictureInPicture>
+        <track id="stimulusTrack" kind="subtitles" default>
     </video>
-    
+
     <div id="screen_container">
         <div style="white-space: pre; font: 14px monospace; line-height: 14px"></div>
         <canvas style="display: none"></canvas>
@@ -508,16 +302,17 @@ window.onload = function()
 </div>
 
 <div id="controls">
-  <input id="loadAlbumButton" type="button" value="📂 Load Album Folder">
-  <select id="manifestDropdown">
-    <option disabled selected>Choose clip</option>
-  </select>
-  
-  <div style="flex-grow: 1;"></div> <button id="interactionBtn" disabled>👋 Take Control</button>
+    <input id="loadAlbumButton" type="button" value="📂 Load Album Folder">
+    <select id="manifestDropdown">
+        <option disabled selected>Choose clip</option>
+    </select>
 
-  <label style="font-weight: bold; color: #555; margin-left: 10px;">Size:</label>
-  <input id="scaleInput" type="number" value="80" min="10" max="200" style="width: 50px; padding: 5px; border-radius: 5px; border: 1px solid #ccc;" />
-  <span style="color: #555;">%</span>
+    <div style="flex-grow: 1;"></div> <button id="interactionBtn" disabled>👋 Take Control</button>
+
+    <label style="font-weight: bold; color: #555; margin-left: 10px;">Size:</label>
+    <input id="scaleInput" type="number" value="80" min="10" max="200"
+        style="width: 50px; padding: 5px; border-radius: 5px; border: 1px solid #ccc;" />
+    <span style="color: #555;">%</span>
 </div>
 
 <div id="debug-section">
@@ -528,3 +323,13 @@ window.onload = function()
         <pre id="stimulusContent">No data loaded.</pre>
     </details>
 </div>
+
+<script>
+    // Check for File System Access API support
+    if (!('showDirectoryPicker' in window)) {
+        document.getElementById('browser-warning').style.display = 'block';
+    }
+</script>
+
+</body>
+</html>
