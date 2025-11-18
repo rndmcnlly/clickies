@@ -339,7 +339,7 @@ class AlbumCapturer {
      */
     async _stopStateRecordingAndEncode() {
         clearInterval(this.saveStateInterval);
-        const savestateBuffers = [];
+        let savestateBuffers = [];
         
         // Sort to ensure correct order
         const sortedFilenames = [...this.stateSequenceFilenames].sort((a, b) => {
@@ -360,9 +360,25 @@ class AlbumCapturer {
         if (!window.v86Savestream || !window.v86Savestream.encode) {
             throw new Error("v86Savestream.encode is not available. Did savestreams_updated.js load?");
         }
+
+        // --- Pause Emulator ---
+        // We check if it's running so we don't accidentally "resume" a paused emulator later
+        const wasRunning = this.emulator.is_running();
+        if (wasRunning) {
+            await this.emulator.stop();
+        }
         
+        // --- Encode Savestream ---
         const encodedStream = await window.v86Savestream.encode(savestateBuffers);
         console.log(`Encoding complete. Final size: ${encodedStream.length} bytes`);
+
+        // Free memory explicitly to help prevent browser lag/crash after heavy operation
+        savestateBuffers = null; 
+
+        // --- Resume Emulator ---
+        if (wasRunning) {
+            await this.emulator.run();
+        }
         
         return encodedStream;
     }

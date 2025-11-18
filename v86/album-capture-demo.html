@@ -73,6 +73,7 @@
 
       // --- Start/Stop Recording Button ---
       recordButton.addEventListener("click", async () => {
+        recordButton.blur(); // Remove focus so Spacebar works in emulator
         if (capturer.isRecording) {
           console.log("Stopping recording...");
           recordButton.disabled = true;
