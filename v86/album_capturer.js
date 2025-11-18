@@ -60,33 +60,40 @@ class AlbumCapturer {
      * @private
      */
     _registerEmulatorListeners() {
-        this.emulator.bus.register("emulator-loaded", () => {
-            this.emulator.v86.cpu.devices.ps2.bus.register(
-                "keyboard-code",
-                (code) => {
-                    let hexcode = "0x" + code.toString(16).toUpperCase();
-                    this._appendStimulusEvent({
-                        name: "keyboard-code",
-                        code: hexcode,
-                        description: this.keycodes[hexcode],
-                    });
-                }
-            );
+        // Check if the V86 structure is ready (it should be if called from emulator-loaded)
+        if (!this.emulator.v86 || !this.emulator.v86.cpu || !this.emulator.v86.cpu.devices.ps2) {
+            console.warn("Emulator not fully loaded yet, input capture may fail. Make sure to call init() after 'emulator-loaded'.");
+            return;
+        }
 
-            this.emulator.v86.cpu.devices.ps2.bus.register("mouse-click", (data) => {
+        // Attach directly to the PS2 bus
+        this.emulator.v86.cpu.devices.ps2.bus.register(
+            "keyboard-code",
+            (code) => {
+                let hexcode = "0x" + code.toString(16).toUpperCase();
                 this._appendStimulusEvent({
-                    name: "mouse-click",
-                    coordinates: [data[0], data[1]],
+                    name: "keyboard-code",
+                    code: hexcode,
+                    description: this.keycodes[hexcode],
                 });
-            });
+            }
+        );
 
-            this.emulator.v86.cpu.devices.ps2.bus.register("mouse-delta", (data) => {
-                this._appendStimulusEvent({
-                    name: "mouse-delta",
-                    coordinates: [data[0], data[1]],
-                });
+        this.emulator.v86.cpu.devices.ps2.bus.register("mouse-click", (data) => {
+            this._appendStimulusEvent({
+                name: "mouse-click",
+                coordinates: [data[0], data[1]],
             });
         });
+
+        this.emulator.v86.cpu.devices.ps2.bus.register("mouse-delta", (data) => {
+            this._appendStimulusEvent({
+                name: "mouse-delta",
+                coordinates: [data[0], data[1]],
+            });
+        });
+        
+        console.log("Input listeners registered.");
     }
 
     /**
@@ -101,16 +108,13 @@ class AlbumCapturer {
                 await this.albumDirHandle.getFileHandle("manifest.json");
                 console.log("Using existing manifest");
             } catch (error) {
-                const manifestHandle = await this.albumDirHandle.getFileHandle("manifest.json", {
-                    create: true,
-                });
+                const manifestHandle = await this.albumDirHandle.getFileHandle("manifest.json", { create: true });
                 const writable = await manifestHandle.createWritable();
                 const initialManifest = {
                     "machine_spec": this.v86_specs,
                     "clips": []
                 };
-                const jsonString = JSON.stringify(initialManifest, null, 2);
-                await writable.write(jsonString);
+                await writable.write(JSON.stringify(initialManifest, null, 2));
                 await writable.close();
                 console.log("Created new manifest");
             }
@@ -132,9 +136,7 @@ class AlbumCapturer {
         }
         
         this.guid = crypto.randomUUID();
-        this.currentFolder = await this.albumDirHandle.getDirectoryHandle(
-            this.guid, { create: true }
-        );
+        this.currentFolder = await this.albumDirHandle.getDirectoryHandle(this.guid, { create: true });
         this.startedRecording = new Date().toISOString();
         this.isRecording = true;
 
@@ -145,12 +147,9 @@ class AlbumCapturer {
         console.log(`Recording started. Clip ID: ${this.guid}`);
     }
 
-    /**
-     * Stops the current recording, processes all captured data, encodes the savestream,
-     * writes all files to the clip folder, and updates the manifest.
-     */
     async stopRecording() {
         if (!this.isRecording) return;
+        
         console.log("Stopping recording...");
 
         try {
@@ -160,25 +159,19 @@ class AlbumCapturer {
             const savestreamBuffer = await this._stopStateRecordingAndEncode();
 
             // 2. Write stimulus.vtt
-            const stimulusHandle = await this.currentFolder.getFileHandle("stimulus.vtt", {
-                create: true,
-            });
+            const stimulusHandle = await this.currentFolder.getFileHandle("stimulus.vtt", { create: true });
             const writableStimulus = await stimulusHandle.createWritable();
             await writableStimulus.write(stimulusContent);
             await writableStimulus.close();
 
             // 3. Write response.webm
-            const responseHandle = await this.currentFolder.getFileHandle("response.webm", {
-                create: true,
-            });
+            const responseHandle = await this.currentFolder.getFileHandle("response.webm", { create: true });
             const writableResponse = await responseHandle.createWritable();
             await writableResponse.write(await responseBlob.arrayBuffer());
             await writableResponse.close();
 
-            // 4. Write savestream.msgpack
-            const saveStreamHandle = await this.currentFolder.getFileHandle(
-                "states.savestream", { create: true }
-            );
+            // 4. Write states.savestream
+            const saveStreamHandle = await this.currentFolder.getFileHandle("states.savestream", { create: true });
             const writableSaveStream = await saveStreamHandle.createWritable();
             await writableSaveStream.write(savestreamBuffer);
             await writableSaveStream.close();
@@ -186,8 +179,7 @@ class AlbumCapturer {
             // 5. Update manifest.json
             const manifestHandle = await this.albumDirHandle.getFileHandle("manifest.json");
             const manifestFile = await manifestHandle.getFile();
-            const manifestContent = await manifestFile.text();
-            const manifest = JSON.parse(manifestContent);
+            const manifest = JSON.parse(await manifestFile.text());
 
             manifest.clips.push({
                 id: this.guid,
@@ -246,12 +238,7 @@ class AlbumCapturer {
         for (let event of this.stimulus) {
             let timestamp = event.timestamp;
             let timeElapsed = timestamp - this.startTime;
-
-            fileLines.push(
-                `${this._formatWebVttTimestamp(timeElapsed)} --> ${this._formatWebVttTimestamp(
-                    timeElapsed + 1
-                )}`
-            );
+            fileLines.push(`${this._formatWebVttTimestamp(timeElapsed)} --> ${this._formatWebVttTimestamp(timeElapsed + 1)}`);
             fileLines.push(JSON.stringify(event));
             fileLines.push("");
         }
@@ -286,11 +273,9 @@ class AlbumCapturer {
             mimeType: 'video/webm;codecs=vp9',
             videoBitsPerSecond: 2500000
         });
-
         this.mediaRecorder.ondataavailable = event => {
             if (event.data.size > 0) this.recordedChunks.push(event.data);
         };
-
         this.mediaRecorder.start(100);
         console.log('Video recording in progress...');
     }
@@ -306,16 +291,12 @@ class AlbumCapturer {
                 reject(new Error('No video recording in progress.'));
                 return;
             }
-
             this.mediaRecorder.onstop = () => {
                 const blob = new Blob(this.recordedChunks, { type: 'video/webm' });
                 console.log('Video recording stopped, blob ready.');
                 resolve(blob);
             };
-            this.mediaRecorder.onerror = (e) => {
-                reject(e.error || new Error('MediaRecorder error'));
-            };
-
+            this.mediaRecorder.onerror = (e) => reject(e.error || new Error('MediaRecorder error'));
             this.mediaRecorder.stop();
         });
     }
@@ -329,13 +310,10 @@ class AlbumCapturer {
         const filename = `v86state (${i}).bin`;
         this.stateSequenceFilenames.push(filename);
 
-        this._appendStimulusEvent({
-            name: "save-state",
-            index: i
-        });
+        // Save index instead of filename for the player
+        this._appendStimulusEvent({ name: "save-state", index: i });
 
         const data = await this.emulator.save_state();
-
         const fileHandle = await this.privateDirHandle.getFileHandle(filename, { create: true });
         const writable = await fileHandle.createWritable();
         await writable.write(data);
@@ -361,20 +339,20 @@ class AlbumCapturer {
      */
     async _stopStateRecordingAndEncode() {
         clearInterval(this.saveStateInterval);
-
         const savestateBuffers = [];
+        
+        // Sort to ensure correct order
         const sortedFilenames = [...this.stateSequenceFilenames].sort((a, b) => {
              const numA = parseInt(a.match(/\((\d+)\)/)[1], 10);
              const numB = parseInt(b.match(/\((\d+)\)/)[1], 10);
              return numA - numB;
         });
 
-        console.log("Reading savestates from private FS...");
+        console.log("Reading states from private FS...");
         for (let filename of sortedFilenames) {
-            const sourceFileHandle = await this.privateDirHandle.getFileHandle(filename);
-            const sourceFile = await sourceFileHandle.getFile();
-            const data = await sourceFile.arrayBuffer();
-            savestateBuffers.push(new Uint8Array(data));
+            const handle = await this.privateDirHandle.getFileHandle(filename);
+            const file = await handle.getFile();
+            savestateBuffers.push(new Uint8Array(await file.arrayBuffer()));
             await this.privateDirHandle.removeEntry(filename);
         }
         
