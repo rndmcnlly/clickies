@@ -1,116 +1,212 @@
-<html>
-  <head>
-    <script id="bookmarklet" src="bookmarklet.js"></script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Album Riffer Hub</title>
     <style>
-      code {
-      }
-      body {
-        font-family: Arial, sans-serif;
-        background-color: #f5f5f5;
-        padding: 20px;
-      }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f0f0;
+            color: #333;
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
 
-      .copy-box {
-        background: white;
-        padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-        text-align: center;
-        position: relative;
-      }
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            color: #222;
+        }
 
-      .copy-text {
-        font-size: 14px;
-        user-select: all;
-        word-break: break-word;
-        background: #f4f4f4;
-        padding: 10px;
-        border-radius: 6px;
-        display: block;
-        text-align: left;
-        font-family: monospace;
-      }
+        p.subtitle {
+            font-size: 1.1rem;
+            color: #666;
+            margin-bottom: 40px;
+            text-align: center;
+            max-width: 600px;
+        }
 
-      button {
-        margin-bottom: 10px;
-        background: #007bff;
-        color: white;
-        border: none;
-        padding: 8px 15px;
-        border-radius: 8px;
-        cursor: pointer;
-        transition: background 0.3s;
-      }
+        /* Browser Compatibility Warning */
+        #browser-warning {
+            display: none; /* Hidden by default, shown via JS */
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+            padding: 15px 20px;
+            margin-bottom: 30px;
+            border-radius: 8px;
+            text-align: center;
+            max-width: 800px;
+            line-height: 1.5;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        
+        #browser-warning a {
+            color: #533f03;
+            text-decoration: underline;
+            font-weight: bold;
+        }
 
-      button:hover {
-        background: #0056b3;
-      }
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 30px;
+            justify-content: center;
+            max-width: 1000px;
+            width: 100%;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            padding: 30px;
+            width: 100%;
+            max-width: 400px;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+        }
+
+        .card h2 {
+            margin-top: 0;
+            color: #007bff;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card p {
+            line-height: 1.6;
+            color: #555;
+            flex-grow: 1;
+            margin-bottom: 25px;
+        }
+
+        .steps {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 25px;
+            font-size: 0.9em;
+        }
+
+        .steps strong {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .steps ol {
+            margin: 0;
+            padding-left: 20px;
+            color: #555;
+        }
+
+        .steps li {
+            margin-bottom: 5px;
+        }
+
+        a.button {
+            display: inline-block;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 50px;
+            font-weight: bold;
+            text-align: center;
+            transition: background-color 0.2s;
+        }
+
+        a.button:hover {
+            background-color: #0056b3;
+        }
+
+        a.button.secondary {
+            background-color: #28a745;
+        }
+
+        a.button.secondary:hover {
+            background-color: #1e7e34;
+        }
+
+        .icon {
+            font-size: 1.5em;
+        }
     </style>
-  </head>
-  <body>
-    <h1>Welcome to the Savestreams Project!</h1>
-    <button onclick="window.location.href='/encoder.html';">encoder</button>
-    <button onclick="window.location.href='/decoder.html';">decoder</button>
-    <button onclick="window.location.href='/inspector.html';">inspector</button>
-    <p>
-      Do you want to save and encode states in real time? Use the bookmarklet below!
-      <br /><br />
-      <strong>Creating the bookmarklet:</strong>
+</head>
+<body>
+
+    <div id="browser-warning">
+        <strong>⚠️ Browser Compatibility Warning:</strong> This application requires the 
+        <code>window.showDirectoryPicker</code> API (File System Access), which is not supported in your current browser. 
+        <br>
+        Please use a desktop version of <strong>Chrome, Edge, or Opera</strong>.
+        <br>
+        <a href="https://developer.mozilla.org/en-US/docs/Web/API/Window/showDirectoryPicker" target="_blank">Learn more at MDN</a>.
+    </div>
+
+    <h1>Album Riffer</h1>
+    <p class="subtitle">
+        A hybrid emulator/video system. Record your sessions, then play them back with the ability to jump in and take control at any moment.
     </p>
-    <ol>
-      <li>Copy the text in the code box below.</li>
-      <li>Create a bookmark on any page, and rename it to something like "savestream bookmarklet". <strong>Paste the copied text into the URL field.</strong> (You may have to edit the URL within your browser's bookmark manager.)</li>
-      <li>Navigate to the <a href="https://copy.sh/v86/debug.html">v86-debug site</a>, and choose a virtual machine to run.</li>
-      <li>On the page for your desired machine emulator, click on the bookmark.</li>
-    </ol>
-    <p>
-      <strong>How to use:</strong>
-    </p>
-    <ol>
-      <li>Click on the newly-added "record savestream" button. You will be prompted to choose a folder on your device disk to save the states to. <strong>This folder MUST be empty.</strong></li>
-      <li>Once per second, a state will be saved. When you are done recording, click on the "stop recording" button.</li>
-      <li>A .savestream file will be saved to your disk.</li>
-    </ol>
-    <p>
-      <strong>Important notes:</strong>
-      <br />
-      Please keep in mind that in order to use the bookmarklet, certain conditions MUST BE TRUE!
-    </p>
-    <ul>
-      <li>The emulator must be running when you click "record savestream".</li>
-      <li>The directory you save the savestates to must be empty.</li>
-    </ul>
-    <div class="copy-box">
-      <button class="copy-btn" onclick="copyText()">Copy Bookmarklet</button>
-      <code class="copy-text" id="copyContent"></code>
+
+    <div class="container">
+        <div class="card">
+            <h2><span class="icon">🎥</span> Phase 1: Capture</h2>
+            <p>
+                Start here to create your recordings. The <strong>Album Capturer</strong> runs the v86 emulator while recording video, input events, and machine states in the background.
+            </p>
+            
+            <div class="steps">
+                <strong>Workflow:</strong>
+                <ol>
+                    <li>Create an empty "Album" folder.</li>
+                    <li>Record one or more clips of usage.</li>
+                    <li>The system automatically saves <code>.webm</code> video and <code>.savestream</code> state data.</li>
+                </ol>
+            </div>
+
+            <a href="v86/album-capture-demo.html" class="button">Launch Album Capturer</a>
+        </div>
+
+        <div class="card">
+            <h2><span class="icon">🎮</span> Phase 2: Riff</h2>
+            <p>
+                The <strong>Album Riffer</strong> is the playback interface. It looks like a video player, but it's running a "shadow" emulator synchronized to the footage.
+            </p>
+
+            <div class="steps">
+                <strong>Workflow:</strong>
+                <ol>
+                    <li>Load the "Album" folder you created.</li>
+                    <li>Select a clip to watch.</li>
+                    <li>See something cool? Click <strong>"Take Control"</strong> to pause the video and instantly interact with the VM.</li>
+                </ol>
+            </div>
+
+            <a href="v86/album-player.html" class="button secondary">Launch Album Riffer</a>
+        </div>
     </div>
 
     <script>
-      let codeBox = document.getElementById("copyContent");
-      let bookmarklet = document.getElementById("bookmarklet");
-      if (bookmarklet) {
-        fetch(bookmarklet.src) // Download the script file
-          .then((response) => response.text()) // Convert response to text
-          .then((jsText) => {
-            codeBox.innerHTML = "javascript:(function() {" + jsText + "})();";
-          }) // send the script text to copy-text id
-          .catch((error) => console.error("Error:", error));
-      }
-
-      function copyText() {
-        const textElement = document.getElementById("copyContent");
-        const range = document.createRange();
-        const selection = window.getSelection();
-
-        range.selectNodeContents(textElement);
-        selection.removeAllRanges();
-        selection.addRange(range);
-
-        document.execCommand("copy");
-        selection.removeAllRanges();
-
-        alert("Code copied!");
-      }
+        // Check for File System Access API support
+        if (!('showDirectoryPicker' in window)) {
+            document.getElementById('browser-warning').style.display = 'block';
+        }
     </script>
-  </body>
+
+</body>
 </html>
