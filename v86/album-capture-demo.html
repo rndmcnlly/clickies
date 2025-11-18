@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<title>Album Capture Demo</title>
+
+<script src="libv86.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/@msgpack/msgpack@3.1.1/dist.umd/msgpack.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fast-json-patch@3.1.1/dist/fast-json-patch.min.js"></script>
+
+<script src="../savestreams_updated.js"></script>
+
+<script src="album_capturer.js"></script>
+
+<script>
+  "use strict";
+
+  window.onload = function () {
+    // 1. Define emulator specs
+    let specs = {
+      wasm_path: "../assets/v86.wasm",
+      memory_size: 32 * 1024 * 1024,
+      vga_memory_size: 2 * 1024 * 1024,
+      screen_container: document.getElementById("screen_container"),
+      bios: {
+        url: "../assets/seabios.bin.file",
+      },
+      vga_bios: {
+        url: "../assets/vgabios.bin.file",
+      },
+      cdrom: {
+        url: "../assets/dsl-4.11.rc2.iso.file",
+      },
+      autostart: true,
+      initial_state: {
+        url: "../assets/v86state-dsl.bin.file",
+      },
+    };
+
+    // 2. Initialize emulator
+    var emulator = (window.emulator = new V86(specs));
+
+    // add click-to-lock for mouse
+    const screen_container = document.getElementById("screen_container");
+    screen_container.addEventListener("click", () => {
+        if (emulator) {
+            emulator.lock_mouse();
+        }
+    });
+
+    // 3. Initialize AlbumCapturer
+    const capturer = new AlbumCapturer(emulator, specs);
+
+    // 4. Get UI elements
+    let saveButton = document.getElementById("save");
+    let recordButton = document.getElementById("record");
+    
+    // 5. Wire up UI after emulator loads
+    emulator.bus.register("emulator-loaded", async function () {
+      const canvas = document.getElementById("emulator-canvas");
+      // Initialize the capturer (fetches scancodes, etc.)
+      await capturer.init(canvas);
+
+      // --- Create/Open Album Button ---
+      saveButton.addEventListener("click", async () => {
+        console.log("Creating album...");
+        const success = await capturer.createAlbum();
+        if (success) {
+          //albumCreated = true;
+          saveButton.disabled = true;
+          recordButton.disabled = false;
+          console.log("Album created/opened.");
+        }
+      });
+
+      // --- Start/Stop Recording Button ---
+      recordButton.addEventListener("click", async () => {
+        if (capturer.isRecording) {
+          console.log("Stopping recording...");
+          recordButton.disabled = true;
+          recordButton.value = "Finalizing clip ...";
+          
+          await capturer.stopRecording();
+          
+          recordButton.disabled = false;
+          recordButton.value = "Start recording another clip";
+          console.log("Recording stopped and clip finalized.");
+        } else {
+          console.log("Starting recording...");
+          await capturer.startRecording();
+          recordButton.value = "Stop recording this clip";
+        }
+      });
+    });
+  };
+</script>
+
+<div id="buttons">
+  <input id="save" type="button" value="Create/open album folder" />
+  <input id="record" type="button" value="Start recording a clip" disabled />
+</div>
+<hr />
+
+<div id="screen_container">
+  <div style="white-space: pre; font: 14px monospace; line-height: 14px"></div>
+  <canvas id="emulator-canvas" style="display: none"></canvas>
+</div>

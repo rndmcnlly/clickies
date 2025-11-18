@@ -2,6 +2,13 @@
 <title>Album Player</title>
 
 <script src="libv86.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/@msgpack/msgpack@3.1.1/dist.umd/msgpack.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fast-json-patch@3.1.1/dist/fast-json-patch.min.js"></script>
+
+<script src="../savestreams_updated.js"></script>
+
+
 <script>
 "use strict";
 
@@ -10,7 +17,9 @@ window.onload = function()
   let manifest = {};
   let dirHandle;
   let subDirHandle;
-  let latestSaveCue = null;
+  let savestreamBuffer = null; // Will hold the loaded states.savestream
+  let currentlyLoadedStateIndex = -1; // Tracks the currently loaded state
+  
   let loadButton = document.getElementById("loadAlbumButton")
   let dropdown = document.getElementById("manifestDropdown")
   let videoPlayer = document.getElementById("responseVideo")
@@ -20,9 +29,6 @@ window.onload = function()
 
   
   async function createEmulator() {
-    /* 
-    ...
-    */
     const machine_spec = structuredClone(manifest.machine_spec);
     machine_spec.screen_container = document.getElementById("screen_container");
     emulator = window.emulator = new V86(machine_spec);
@@ -41,17 +47,18 @@ window.onload = function()
       await createEmulator();
       
       if(manifest.clips && manifest.clips.length > 0) {
+        // Add clips to dropdown
+        for (let clip of manifest.clips) {
+          const option = document.createElement("option");
+          option.textContent = clip["id"];
+          dropdown.appendChild(option);
+        }
+        // Load the first clip by default
+        dropdown.value = manifest.clips[0].id;
         await loadClip(manifest.clips[0].id);
       }
     } catch (err) {
       console.error(`Error accessing manifest.json`, err)
-    }
-    
-    // add clips to dropdown
-    for (let clip of manifest.clips) {
-      const option = document.createElement("option");
-      option.textContent = clip["id"];
-      dropdown.appendChild(option);
     }
   })
   
@@ -62,9 +69,13 @@ window.onload = function()
   });
   
   async function loadClip(selectedFolderName) {
-
       try {
         subDirHandle = await dirHandle.getDirectoryHandle(selectedFolderName);
+        
+        // Reset state
+        savestreamBuffer = null;
+        currentlyLoadedStateIndex = -1;
+        displayElement.textContent = "Loading clip...";
 
         // Load video
         const videoHandle = await subDirHandle.getFileHandle("response.webm");
@@ -80,68 +91,87 @@ window.onload = function()
           const stimURL = URL.createObjectURL(stimFile);
           track.src = stimURL;
           track.default = true;
-          
-
         } catch {
           console.warn("stimulus.vtt not found");
           track.removeAttribute("src"); // Clear old subtitle
         }
         
+        // Load the savestream file into memory
+        try {
+          const savestreamHandle = await subDirHandle.getFileHandle("states.savestream");
+          const savestreamFile = await savestreamHandle.getFile();
+          savestreamBuffer = new Uint8Array(await savestreamFile.arrayBuffer()); // Store as Uint8Array
+          console.log(`Loaded ${savestreamBuffer.byteLength} byte savestream`);
+        } catch {
+          console.warn("states.savestream not found");
+          savestreamBuffer = null;
+        }
+
         videoPlayer.textTracks[0].mode = "showing";
         console.log("Video and subtitles loaded.");
-        console.log(videoPlayer.textTracks[0]);
       } catch (err) {
         console.error("Failed to load media from subfolder:", err);
       } 
   }
   
   function updateSaveStateDisplay() {
+    if (!emulator || !savestreamBuffer) return; // Don't run if emulator or stream isn't ready
+
     const currentTime = videoPlayer.currentTime;
     const track = videoPlayer.textTracks[0];
     const cues = track.cues;
-    latestSaveCue = null;
+    let latestSaveEvent = null;
     
     if (!cues || cues.length === 0) return;
 
-    // Loop backward from the last cue
-    // In the future: consider using a binary search for faster lookup in very long sequences
+    // Loop backward to find the most recent save-state cue
     for (let i = cues.length - 1; i >= 0; i--) {
       const cue = cues[i];
       if (cue.startTime <= currentTime) {
         try {
           const data = JSON.parse(cue.text);
-          console.log(data.event?.name)
-
           if (data.event?.name == "save-state") {
-            latestSaveCue = data;
-            console.log(latestSaveCue)
+            latestSaveEvent = data.event;
             break; // Found the most recent match
           }
         } catch (e) {
-          console.warn("Invalid JSON in cue:", cue.text);
+          // Ignore invalid JSON
         }
       }
     }
 
-    displayElement.textContent = latestSaveCue
-      ? `Latest save: ${latestSaveCue.event.filename}`
+    displayElement.textContent = latestSaveEvent
+      ? `Latest save index: ${latestSaveEvent.index}`
       : "No save-state yet.";
     
-    if (latestSaveCue) {
-      loadSave(latestSaveCue.event.filename);
+    // If we found a state and it's not the one we've already loaded, load it.
+    if (latestSaveEvent && latestSaveEvent.index !== currentlyLoadedStateIndex) {
+      loadStateByIndex(latestSaveEvent.index);
     }
   }
   
-  async function loadSave(filename) {
-    try {
-      const fileHandle = await subDirHandle.getFileHandle(filename); // must be scoped properly
-      const file = await fileHandle.getFile();
-      const buffer = await file.arrayBuffer();
-      await emulator.restore_state(buffer);
-    } catch (err) {
-      alert(`File "${filename}" not found in the folder.`);
+  async function loadStateByIndex(index) {
+    if (!savestreamBuffer) {
+      console.warn("Savestream not loaded, cannot restore state.");
+      return;
     }
     
+    if (index === currentlyLoadedStateIndex) {
+      return; // Already loaded
+    }
+
+    console.log(`Loading state index: ${index}`);
+    try {
+      // Use decodeOne from savestreams_updated.js
+      const stateBuffer = await window.v86Savestream.decodeOne(savestreamBuffer, index);
+      
+      // Restore the state into the emulator
+      await emulator.restore_state(stateBuffer);
+      currentlyLoadedStateIndex = index;
+      
+    } catch (err) {
+      console.error(`Error decoding/restoring state ${index}:`, err);
+    }
   }
     
   videoPlayer.addEventListener("timeupdate", updateSaveStateDisplay);
@@ -163,10 +193,9 @@ window.onload = function()
   <track id="stimulusTrack" kind="subtitles">
 </video>
 <div>
-  <p id = "saveStateDisplay"></p>
+  <p id="saveStateDisplay"></p>
 </div>
 
-<!-- A minimal structure for the ScreenAdapter defined in browser/screen.js -->
 <div id="screen_container">
     <div style="white-space: pre; font: 14px monospace; line-height: 14px"></div>
     <canvas style="display: none"></canvas>
