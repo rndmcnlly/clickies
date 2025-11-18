@@ -1,5 +1,151 @@
 <!DOCTYPE html>
-<title>Album Capture Demo</title>
+<title>Album Capturer</title>
+
+<style>
+  body {
+    font-family: sans-serif;
+    padding: 20px;
+    background: #f0f0f0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  h1 {
+    margin-top: 0;
+    color: #333;
+  }
+
+  /* Instructions Card */
+  #instructions {
+    width: 80%;
+    max-width: 1280px;
+    background: #fff;
+    padding: 15px 20px;
+    border-radius: 15px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+    margin-top: 10px;
+    color: #555;
+    font-size: 0.95em;
+    line-height: 1.5;
+  }
+
+  #instructions h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    color: #007bff;
+  }
+
+  #instructions ul {
+    margin: 0;
+    padding-left: 20px;
+  }
+
+  #instructions li {
+    margin-bottom: 5px;
+  }
+
+  /* Main Emulator Wrapper */
+  #player-wrapper {
+    position: relative;
+    width: 80%; 
+    max-width: 1280px; 
+    aspect-ratio: 720 / 400;
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+  }
+
+  #screen_container {
+    width: 100%;
+    height: 100%;
+  }
+
+  #screen_container canvas {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain !important;
+    display: block;
+  }
+
+  /* Controls Bar */
+  #controls {
+    margin-top: 15px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    width: 80%;
+    max-width: 1280px; 
+    background: white;
+    padding: 10px 20px;
+    border-radius: 15px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    box-sizing: border-box;
+  }
+
+  input[type="button"] {
+    padding: 10px 20px;
+    border-radius: 20px;
+    border: none;
+    background-color: #007bff;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    font-size: 14px;
+  }
+
+  input[type="button"]:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  input[type="button"]:hover:not(:disabled) {
+    background-color: #0056b3;
+  }
+
+  input[type="button"]:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+
+  /* Record Button Specifics */
+  #record {
+    background-color: #28a745; /* Green for start */
+    min-width: 150px;
+  }
+
+  #record.recording {
+    background-color: #dc3545; /* Red for stop */
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(220, 53, 69, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+  }
+
+  #status {
+    flex-grow: 1;
+    text-align: right;
+    font-family: monospace;
+    color: #666;
+    font-size: 0.9em;
+  }
+
+  input[type="range"] {
+    cursor: pointer;
+  }
+  
+  /* Ensure the label doesn't break layout */
+  label {
+    user-select: none;
+  }
+
+</style>
 
 <script src="libv86.js"></script>
 
@@ -52,6 +198,18 @@
     // 4. Get UI elements
     let saveButton = document.getElementById("save");
     let recordButton = document.getElementById("record");
+    let statusLabel = document.getElementById("status");
+
+// --- NEW: Handle Scale Input ---
+    let scaleInput = document.getElementById("scaleInput");
+    let playerWrapper = document.getElementById("player-wrapper");
+
+    scaleInput.addEventListener("change", () => {
+        // Update the width of the container based on the percentage
+        playerWrapper.style.width = scaleInput.value + "%";
+        // Optional: Remove max-width to allow it to go as huge as possible
+        playerWrapper.style.maxWidth = "none"; 
+    });
     
     // 5. Wire up UI after emulator loads
     emulator.bus.register("emulator-loaded", async function () {
@@ -61,46 +219,80 @@
 
       // --- Create/Open Album Button ---
       saveButton.addEventListener("click", async () => {
-        console.log("Creating album...");
+        console.log("Creating album...")
+        saveButton.blur();
+        statusLabel.textContent = "Select a folder...";
+        
         const success = await capturer.createAlbum();
+        
         if (success) {
-          //albumCreated = true;
           saveButton.disabled = true;
+          saveButton.value = "📂 Album Open";
           recordButton.disabled = false;
+          statusLabel.textContent = "Ready to record.";
           console.log("Album created/opened.");
+        } else {
+          statusLabel.textContent = "Album selection cancelled.";
         }
       });
 
       // --- Start/Stop Recording Button ---
       recordButton.addEventListener("click", async () => {
         recordButton.blur(); // Remove focus so Spacebar works in emulator
+        
         if (capturer.isRecording) {
           console.log("Stopping recording...");
           recordButton.disabled = true;
-          recordButton.value = "Finalizing clip ...";
+          recordButton.classList.remove("recording");
+          recordButton.value = "⏳ Finalizing clickie (may take >1 min)...";
+          statusLabel.textContent = "Encoding video & compressing states. Please wait...";
           
           await capturer.stopRecording();
           
           recordButton.disabled = false;
-          recordButton.value = "Start recording another clip";
-          console.log("Recording stopped and clip finalized.");
+          recordButton.value = "🔴 Start Recording Another Clip";
+          statusLabel.textContent = "Clickie saved! Ready for next.";
+          console.log("Recording stopped and clickie finalized.");
+          
         } else {
-          console.log("Starting recording...");
+          // STARTING
+          statusLabel.textContent = "Recording... (Click screen to capture mouse)";
           await capturer.startRecording();
-          recordButton.value = "Stop recording this clip";
+          recordButton.value = "⏹ Stop Recording";
+          recordButton.classList.add("recording");
         }
       });
     });
   };
 </script>
 
-<div id="buttons">
-  <input id="save" type="button" value="Create/open album folder" />
-  <input id="record" type="button" value="Start recording a clip" disabled />
-</div>
-<hr />
+<h1>Album Capturer</h1>
 
-<div id="screen_container">
-  <div style="white-space: pre; font: 14px monospace; line-height: 14px"></div>
-  <canvas id="emulator-canvas" style="display: none"></canvas>
+<div id="instructions">
+    <h3>Instructions & Tips</h3>
+    <ul>
+        <li><strong>Step 1:</strong> Click <em>"Create/Open Album Folder"</em> to select an empty folder for your recordings.</li>
+        <li><strong>Step 2:</strong> Click <em>"Start Recording Clip"</em> to begin capturing video, inputs, and machine states.</li>
+        <li><strong>Step 3:</strong> Interact with the VM! Click the screen to lock your mouse. Press <strong>ESC</strong> to unlock.</li>
+        <li><strong>Step 4:</strong> Click <em>"Stop Recording"</em> when finished.</li>
+        <li><strong>⚠️ Note:</strong> Finalizing a clip involves heavy compression. It <strong>may take over a minute</strong> for long clips. The browser might freeze briefly.</li>
+    </ul>
+</div>
+
+<div id="player-wrapper">
+    <div id="screen_container">
+        <div style="white-space: pre; font: 14px monospace; line-height: 14px"></div>
+        <canvas id="emulator-canvas" style="display: none"></canvas>
+    </div>
+</div>
+
+<div id="controls">
+  <input id="save" type="button" value="📂 Create/Open Album Folder" />
+  <input id="record" type="button" value="🔴 Start Recording Clip" disabled />
+  
+  <label style="font-weight: bold; color: #555; margin-left: 10px;">Scale:</label>
+  <input id="scaleInput" type="number" value="80" min="10" max="200" style="width: 50px; padding: 5px; border-radius: 5px; border: 1px solid #ccc;" />
+  <span style="color: #555;">%</span>
+
+  <span id="status">Waiting for emulator...</span>
 </div>
