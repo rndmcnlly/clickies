@@ -150,7 +150,17 @@ function hashBlock(block) {
 // encode a sequence of v86 savestates into a single compressed savestream
 // params - savestatesArray (Array of Uint8Array): the array of v86 savestate buffers, blockSize (int): the alignment block size, superBlockMultiple (int): the number of blocks per superblock
 // returns - savestream (Uint8Array): the compressed savestream buffer
-async function encode(savestatesArray, blockSize = 256, superBlockMultiple = 256) {
+async function encode(savestatesArray, {blockSize = 256, superBlockMultiple = 256, onProgress = null} = {}) {
+
+    async function reportProgress(index, total) {
+        if (onProgress) {
+            onProgress(index, total);
+        } 
+
+        // Yield to event loop to keep UI responsive
+        await new Promise(resolve => setTimeout(resolve, 0));
+    }
+
     const superBlockSize = blockSize * superBlockMultiple;
 
     // make zero blocks
@@ -166,6 +176,8 @@ async function encode(savestatesArray, blockSize = 256, superBlockMultiple = 256
 
     // keep tract of previous savestate info for diffing
     let prevInfo = {};
+
+    await reportProgress(0, savestatesArray.length);
 
     // main encoding loop
     for (const savestate of savestatesArray) {
@@ -231,6 +243,8 @@ async function encode(savestatesArray, blockSize = 256, superBlockMultiple = 256
             newSuperBlocks: Object.fromEntries(newSuperBlocks),
             superIdSequence
         });
+
+        await reportProgress(incrementalSaves.length, savestatesArray.length);
 
     }
 

@@ -147,36 +147,39 @@ class AlbumCapturer {
         console.log(`Recording started. Clip ID: ${this.guid}`);
     }
 
-    async stopRecording() {
+// 1. Update stopRecording to accept the callback
+    async stopRecording(onProgress) {
         if (!this.isRecording) return;
         
         console.log("Stopping recording...");
 
         try {
-            // 1. Finalize all recordings
+            // Finalize recordings
             const stimulusContent = this._finishInputRecording();
             const responseBlob = await this._stopVideoRecording();
-            const savestreamBuffer = await this._stopStateRecordingAndEncode();
+            
+            // 2. Pass the callback down
+            const savestreamBuffer = await this._stopStateRecordingAndEncode(onProgress);
 
-            // 2. Write stimulus.vtt
+            // Write stimulus.vtt
             const stimulusHandle = await this.currentFolder.getFileHandle("stimulus.vtt", { create: true });
             const writableStimulus = await stimulusHandle.createWritable();
             await writableStimulus.write(stimulusContent);
             await writableStimulus.close();
 
-            // 3. Write response.webm
+            // Write response.webm
             const responseHandle = await this.currentFolder.getFileHandle("response.webm", { create: true });
             const writableResponse = await responseHandle.createWritable();
             await writableResponse.write(await responseBlob.arrayBuffer());
             await writableResponse.close();
 
-            // 4. Write states.savestream
+            // Write states.savestream
             const saveStreamHandle = await this.currentFolder.getFileHandle("states.savestream", { create: true });
             const writableSaveStream = await saveStreamHandle.createWritable();
             await writableSaveStream.write(savestreamBuffer);
             await writableSaveStream.close();
 
-            // 5. Update manifest.json
+            // Update manifest.json
             const manifestHandle = await this.albumDirHandle.getFileHandle("manifest.json");
             const manifestFile = await manifestHandle.getFile();
             const manifest = JSON.parse(await manifestFile.text());
@@ -196,7 +199,7 @@ class AlbumCapturer {
             console.error("Failed to stop recording:", e);
         }
 
-        // 6. Reset state
+        // Reset state
         this.isRecording = false;
         this.guid = null;
         this.startedRecording = null;
@@ -334,14 +337,14 @@ class AlbumCapturer {
     /**
      * Stops saving states, reads all states from the private FS,
      * encodes them into a single savestream, and cleans up the private FS.
+     * @param {function} onProgress - Callback for progress updates during encoding.
      * @returns {Promise<Uint8Array>} - The encoded savestream.
      * @private
      */
-    async _stopStateRecordingAndEncode() {
+    async _stopStateRecordingAndEncode(onProgress) {
         clearInterval(this.saveStateInterval);
         let savestateBuffers = [];
         
-        // Sort to ensure correct order
         const sortedFilenames = [...this.stateSequenceFilenames].sort((a, b) => {
              const numA = parseInt(a.match(/\((\d+)\)/)[1], 10);
              const numB = parseInt(b.match(/\((\d+)\)/)[1], 10);
@@ -361,21 +364,21 @@ class AlbumCapturer {
             throw new Error("v86Savestream.encode is not available. Did savestreams_updated.js load?");
         }
 
-        // --- Pause Emulator ---
-        // We check if it's running so we don't accidentally "resume" a paused emulator later
+        // Pause Emulator
         const wasRunning = this.emulator.is_running();
         if (wasRunning) {
             await this.emulator.stop();
         }
-        
-        // --- Encode Savestream ---
-        const encodedStream = await window.v86Savestream.encode(savestateBuffers);
-        console.log(`Encoding complete. Final size: ${encodedStream.length} bytes`);
 
+        // Encode Savestream 
+        const encodedStream = await window.v86Savestream.encode(savestateBuffers, { 
+            onProgress: onProgress 
+        });
+        
         // Free memory explicitly to help prevent browser lag/crash after heavy operation
         savestateBuffers = null; 
 
-        // --- Resume Emulator ---
+        // Resume Emulator
         if (wasRunning) {
             await this.emulator.run();
         }

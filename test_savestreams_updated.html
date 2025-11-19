@@ -193,7 +193,9 @@
       let encoded_savestream; // Store for subsequent tests
       
       await runTest("test_encode_decode_roundtrip (Public API, Real Data)", async () => {
-          encoded_savestream = await encode(savestates);
+          encoded_savestream = await encode(savestates, {onProgress:(current, total) => {
+              log(`   Encoding progress: ${current}/${total} states`);
+          }});
           assert(encoded_savestream instanceof Uint8Array, "Encoded savestream is Uint8Array");
           
           const decoded_savestates = [];

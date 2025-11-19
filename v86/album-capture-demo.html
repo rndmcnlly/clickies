@@ -94,7 +94,7 @@
     // 4. Get UI elements
     let saveButton = document.getElementById("save");
     let recordButton = document.getElementById("record");
-
+    
     // 5. Handle Scale Input
     let scaleInput = document.getElementById("scaleInput");
     let playerWrapper = document.getElementById("player-wrapper");
@@ -110,13 +110,13 @@
         browserWarning.style.width = widthVal;
 
         if (scaleInput.value > 80) {
-        playerWrapper.style.maxWidth = "none"; 
+            playerWrapper.style.maxWidth = "none";
             controlsWrapper.style.maxWidth = "none";
             instructionsWrapper.style.maxWidth = "none";
             browserWarning.style.maxWidth = "none";
         }
     });
-    
+
     // 6. Main Logic: Status Updates
     emulator.add_listener("emulator-ready", function () {
       console.log("EVENT: emulator-ready");
@@ -128,9 +128,9 @@
       statusLabel.textContent = "Emulator Running. Setting up recorder...";
       
       try {
-      const canvas = document.getElementById("emulator-canvas");
+          const canvas = document.getElementById("emulator-canvas");
       // Initialize the capturer (fetches scancodes, etc.)
-      await capturer.init(canvas);
+          await capturer.init(canvas);
 
           // Set initial scale
           scaleInput.dispatchEvent(new Event('input'));
@@ -139,53 +139,60 @@
           statusLabel.textContent = "Ready. Select an album folder to begin.";
           statusLabel.style.color = "#28a745"; // Green for ready
 
-      // --- Create/Open Album Button ---
-      saveButton.addEventListener("click", async () => {
+          // --- Create/Open Album Button ---
+          saveButton.addEventListener("click", async () => {
         console.log("Creating album...")
-        saveButton.blur();
-        statusLabel.textContent = "Select a folder...";
+            saveButton.blur();
+            statusLabel.textContent = "Select a folder...";
             statusLabel.style.color = "#666";
-        
-        const success = await capturer.createAlbum();
-        
-        if (success) {
-          saveButton.disabled = true;
-          saveButton.value = "📂 Album Open";
-          recordButton.disabled = false;
-          statusLabel.textContent = "Ready to record.";
+            
+            const success = await capturer.createAlbum();
+            
+            if (success) {
+              saveButton.disabled = true;
+              saveButton.value = "📂 Album Open";
+              recordButton.disabled = false;
+              statusLabel.textContent = "Ready to record.";
           console.log("Album created/opened.");
-        } else {
-          statusLabel.textContent = "Album selection cancelled.";
-        }
-      });
+            } else {
+              statusLabel.textContent = "Album selection cancelled.";
+            }
+          });
 
-      // --- Start/Stop Recording Button ---
-      recordButton.addEventListener("click", async () => {
+          // --- Start/Stop Recording Button ---
+          recordButton.addEventListener("click", async () => {
         recordButton.blur(); // Remove focus so Spacebar works in emulator
-        
-        if (capturer.isRecording) {
+            
+            if (capturer.isRecording) {
           console.log("Stopping recording...");
-          recordButton.disabled = true;
-          recordButton.classList.remove("recording");
-          recordButton.value = "⏳ Finalizing clickie (may take >1 min)...";
-          statusLabel.textContent = "Encoding video & compressing states. Please wait...";
-          
-          await capturer.stopRecording();
-          
-          recordButton.disabled = false;
-          recordButton.value = "🔴 Start Recording Another Clip";
+              recordButton.disabled = true;
+              recordButton.classList.remove("recording");
+              recordButton.value = "⏳ Finalizing clickie (may take >1 min)...";
+              statusLabel.textContent = "Encoding video & compressing states. Please wait...";
+
+                // --- DEFINE UI CALLBACK ---
+                const onProgress = (current, total) => {
+                    const percent = Math.round((current / total) * 100);
+                    statusLabel.textContent = `Compressing state ${current} of ${total} (${percent}%)`;
+                    statusLabel.style.color = "#e67e22"; // Orange color
+                };
+              
+              await capturer.stopRecording(onProgress);
+              
+              recordButton.disabled = false;
+              recordButton.value = "🔴 Start Recording Another Clip";
           statusLabel.textContent = "Clickie saved! Ready for next.";
           console.log("Recording stopped and clickie finalized.");
-          
-        } else {
-          // STARTING
-          statusLabel.textContent = "Recording... (Click screen to capture mouse)";
+              
+            } else {
+              // STARTING
+              statusLabel.textContent = "Recording... (Click screen to capture mouse)";
               statusLabel.style.color = "#dc3545"; // Red recording color
-          await capturer.startRecording();
-          recordButton.value = "⏹ Stop Recording";
-          recordButton.classList.add("recording");
-        }
-      });
+              await capturer.startRecording();
+              recordButton.value = "⏹ Stop Recording";
+              recordButton.classList.add("recording");
+            }
+          });
 
       } catch (err) {
           console.error("Setup Error:", err);
