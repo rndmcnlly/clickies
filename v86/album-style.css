@@ -278,3 +278,108 @@ details[open] summary::after {
     text-decoration: underline;
     font-weight: bold;
 }
+
+.hub-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 30px;
+    justify-content: center;
+    max-width: 1000px;
+    width: 100%;
+}
+
+.hub-card {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+    padding: 30px;
+    width: 100%;
+    max-width: 400px;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.hub-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+}
+
+.hub-card h2 {
+    margin-top: 0;
+    color: #007bff;
+    font-size: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.hub-card p {
+    line-height: 1.6;
+    color: #555;
+    flex-grow: 1;
+    margin-bottom: 25px;
+}
+
+/* Steps List */
+.steps {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 25px;
+    font-size: 0.9em;
+}
+
+.steps strong {
+    display: block;
+    margin-bottom: 8px;
+    color: #333;
+}
+
+.steps ol {
+    margin: 0;
+    padding-left: 20px;
+    color: #555;
+}
+
+.steps li {
+    margin-bottom: 5px;
+}
+
+/* Hub Subtitle */
+.hub-subtitle {
+    font-size: 1.1rem;
+    color: #666;
+    margin-bottom: 40px;
+    text-align: center;
+    max-width: 600px;
+}
+
+/* Anchor Buttons (Specific to Hub navigation) */
+a.hub-button {
+    display: inline-block;
+    background-color: #007bff;
+    color: white;
+    text-decoration: none;
+    padding: 12px 24px;
+    border-radius: 50px;
+    font-weight: bold;
+    text-align: center;
+    transition: background-color 0.2s;
+}
+
+a.hub-button:hover {
+    background-color: #0056b3;
+}
+
+a.hub-button.secondary {
+    background-color: #28a745;
+}
+
+a.hub-button.secondary:hover {
+    background-color: #1e7e34;
+}
+
+.icon {
+    font-size: 1.5em;
+}
