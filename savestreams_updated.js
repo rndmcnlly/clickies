@@ -199,6 +199,7 @@ async function encode(savestatesArray, {blockSize = 256, superBlockMultiple = 25
         const superIdSequence = [];
         const newSuperBlocks = new Map();
         const newBlocks = new Map();
+        const encoder = new TextEncoder();
 
         // process each superblock
         for (const superBlock of superBlocks) {
@@ -232,7 +233,7 @@ async function encode(savestatesArray, {blockSize = 256, superBlockMultiple = 25
         // delta encode the info block
         const infoJson = JSON.parse(new TextDecoder("utf-8").decode(infoBlock));
         const infoDiff = compare(prevInfo, infoJson);
-        const encodedInfo = new TextEncoder().encode(JSON.stringify(infoDiff));
+        const encodedInfo = encoder.encode(JSON.stringify(infoDiff));
         prevInfo = infoJson;
 
         // record the incremental save data
