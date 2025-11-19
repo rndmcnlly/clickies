@@ -22,6 +22,22 @@
   "use strict";
 
   window.onload = function () {
+    const statusLabel = document.getElementById("status");
+    let emulator = null;
+    let capturer = null;
+
+    // 0. Check Dependencies
+    if (typeof V86 === 'undefined') {
+        statusLabel.textContent = "Error: V86 library not loaded.";
+        statusLabel.style.color = "red";
+        return;
+    }
+    if (typeof AlbumCapturer === 'undefined') {
+        statusLabel.textContent = "Error: AlbumCapturer library not loaded.";
+        statusLabel.style.color = "red";
+        return;
+    }
+
     // 1. Define emulator specs
     let specs = {
       wasm_path: "../assets/v86.wasm",
@@ -43,47 +59,92 @@
       },
     };
 
-    // 2. Initialize emulator
-    var emulator = (window.emulator = new V86(specs));
+    // 2. Initialize Emulator with Error Handling
+    try {
+        statusLabel.textContent = "Initializing Emulator...";
+        
+        emulator = window.emulator = new V86(specs);
 
-    // add click-to-lock for mouse
+        // --- GLOBAL ERROR LISTENER ---
+        emulator.add_listener("emulator-error", (error) => {
+            console.error("EMULATOR ERROR:", error);
+            statusLabel.textContent = `Emulator Error: ${error.message || "Check console"}`;
+            statusLabel.style.color = "red";
+        });
+
+    } catch (e) {
+        console.error("V86 Initialization Error:", e);
+        statusLabel.textContent = `Init Failed: ${e.message}`;
+        statusLabel.style.color = "red";
+        return;
+    }
+
+    // Mouse Lock Support
     const screen_container = document.getElementById("screen_container");
     screen_container.addEventListener("click", () => {
         if (emulator) {
+            scaleInput.blur();
             emulator.lock_mouse();
         }
     });
 
     // 3. Initialize AlbumCapturer
-    const capturer = new AlbumCapturer(emulator, specs);
+    capturer = new AlbumCapturer(emulator, specs);
 
     // 4. Get UI elements
     let saveButton = document.getElementById("save");
     let recordButton = document.getElementById("record");
-    let statusLabel = document.getElementById("status");
 
-// --- NEW: Handle Scale Input ---
+    // 5. Handle Scale Input
     let scaleInput = document.getElementById("scaleInput");
     let playerWrapper = document.getElementById("player-wrapper");
+    let controlsWrapper = document.getElementById("controls");
+    let instructionsWrapper = document.getElementById("instructions");
+    let browserWarning = document.getElementById("browser-warning");
 
-    scaleInput.addEventListener("change", () => {
-        // Update the width of the container based on the percentage
-        playerWrapper.style.width = scaleInput.value + "%";
-        // Optional: Remove max-width to allow it to go as huge as possible
+    scaleInput.addEventListener("input", () => {
+        const widthVal = scaleInput.value + "%";
+        playerWrapper.style.width = widthVal;
+        controlsWrapper.style.width = widthVal;
+        instructionsWrapper.style.width = widthVal;
+        browserWarning.style.width = widthVal;
+
+        if (scaleInput.value > 80) {
         playerWrapper.style.maxWidth = "none"; 
+            controlsWrapper.style.maxWidth = "none";
+            instructionsWrapper.style.maxWidth = "none";
+            browserWarning.style.maxWidth = "none";
+        }
     });
     
-    // 5. Wire up UI after emulator loads
-    emulator.bus.register("emulator-loaded", async function () {
+    // 6. Main Logic: Status Updates
+    emulator.add_listener("emulator-ready", function () {
+      console.log("EVENT: emulator-ready");
+      statusLabel.textContent = "Emulator Initialized. Booting...";
+    });
+    
+    emulator.add_listener("emulator-loaded", async function () {
+      console.log("EVENT: emulator-loaded");
+      statusLabel.textContent = "Emulator Running. Setting up recorder...";
+      
+      try {
       const canvas = document.getElementById("emulator-canvas");
       // Initialize the capturer (fetches scancodes, etc.)
       await capturer.init(canvas);
+
+          // Set initial scale
+          scaleInput.dispatchEvent(new Event('input'));
+          
+          // Final Status Update
+          statusLabel.textContent = "Ready. Select an album folder to begin.";
+          statusLabel.style.color = "#28a745"; // Green for ready
 
       // --- Create/Open Album Button ---
       saveButton.addEventListener("click", async () => {
         console.log("Creating album...")
         saveButton.blur();
         statusLabel.textContent = "Select a folder...";
+            statusLabel.style.color = "#666";
         
         const success = await capturer.createAlbum();
         
@@ -119,11 +180,18 @@
         } else {
           // STARTING
           statusLabel.textContent = "Recording... (Click screen to capture mouse)";
+              statusLabel.style.color = "#dc3545"; // Red recording color
           await capturer.startRecording();
           recordButton.value = "⏹ Stop Recording";
           recordButton.classList.add("recording");
         }
       });
+
+      } catch (err) {
+          console.error("Setup Error:", err);
+          statusLabel.textContent = "Error setting up recorder: " + err.message;
+          statusLabel.style.color = "red";
+      }
     });
   };
 </script>
@@ -151,9 +219,9 @@
 </div>
 
 <div id="player-wrapper">
-    <div id="screen_container">
+    <div id="screen_container" class="capturer-visible">
         <div style="white-space: pre; font: 14px monospace; line-height: 14px"></div>
-        <canvas id="emulator-canvas" style="display: none"></canvas>
+        <canvas id="emulator-canvas"></canvas>
     </div>
 </div>
 
@@ -161,7 +229,7 @@
   <input id="save" type="button" value="📂 Create/Open Album Folder" />
   <input id="record" type="button" value="🔴 Start Recording Clip" disabled />
   
-  <label style="font-weight: bold; color: #555; margin-left: 10px;">Scale:</label>
+  <div style="flex-grow: 1;"></div> <label style="font-weight: bold; color: #555; margin-left: 10px;">Scale:</label>
   <input id="scaleInput" type="number" value="80" min="10" max="200" style="width: 50px; padding: 5px; border-radius: 5px; border: 1px solid #ccc;" />
   <span style="color: #555;">%</span>
 

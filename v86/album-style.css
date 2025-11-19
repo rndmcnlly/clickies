@@ -97,6 +97,10 @@ video::cue {
   z-index: 20;
 }
 
+#screen_container.capturer-visible {
+    display: block !important;
+}
+
 /* Control Bar */
 #controls {
   margin-top: 15px;
