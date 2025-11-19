@@ -40,23 +40,14 @@
         // Resizing Logic
         const scaleInput = document.getElementById("scaleInput");
         const playerWrapper = document.getElementById("player-wrapper");
-        const controlsWrapper = document.getElementById("controls");
-        const debugWrapper = document.getElementById("debug-section");
-        const instructionsWrapper = document.getElementById("instructions");
 
         scaleInput.addEventListener("input", () => {
-            const widthVal = scaleInput.value + "%";
-            playerWrapper.style.width = widthVal;
-            controlsWrapper.style.width = widthVal;
-            debugWrapper.style.width = widthVal;
-
-            // Allow growing beyond default constraints if user wants
-            if (scaleInput.value > 80) {
-                playerWrapper.style.maxWidth = "none";
-                controlsWrapper.style.maxWidth = "none";
-                debugWrapper.style.maxWidth = "none";
-                instructionsWrapper.style.maxWidth = "none";
-            }
+            // Clamp value between 50 and 100
+            let val = parseInt(scaleInput.value);
+            if (val < 50) val = 50;
+            if (val > 100) val = 100;
+            
+            playerWrapper.style.width = val + "%";
         });
 
         let emulator = null;
@@ -310,7 +301,7 @@
     <div style="flex-grow: 1;"></div> <button id="interactionBtn" disabled>👋 Take Control</button>
 
     <label style="font-weight: bold; color: #555; margin-left: 10px;">Size:</label>
-    <input id="scaleInput" type="number" value="80" min="10" max="200"
+    <input id="scaleInput" type="number" value="85" min="50" max="100"
         style="width: 50px; padding: 5px; border-radius: 5px; border: 1px solid #ccc;" />
     <span style="color: #555;">%</span>
 </div>

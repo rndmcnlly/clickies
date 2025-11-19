@@ -98,23 +98,14 @@
     // 5. Handle Scale Input
     let scaleInput = document.getElementById("scaleInput");
     let playerWrapper = document.getElementById("player-wrapper");
-    let controlsWrapper = document.getElementById("controls");
-    let instructionsWrapper = document.getElementById("instructions");
-    let browserWarning = document.getElementById("browser-warning");
 
     scaleInput.addEventListener("input", () => {
-        const widthVal = scaleInput.value + "%";
-        playerWrapper.style.width = widthVal;
-        controlsWrapper.style.width = widthVal;
-        instructionsWrapper.style.width = widthVal;
-        browserWarning.style.width = widthVal;
-
-        if (scaleInput.value > 80) {
-            playerWrapper.style.maxWidth = "none";
-            controlsWrapper.style.maxWidth = "none";
-            instructionsWrapper.style.maxWidth = "none";
-            browserWarning.style.maxWidth = "none";
-        }
+        // Clamp value between 50 and 100
+        let val = parseInt(scaleInput.value);
+        if (val < 50) val = 50;
+        if (val > 100) val = 100;
+        
+        playerWrapper.style.width = val + "%";
     });
 
     // 6. Main Logic: Status Updates
@@ -237,7 +228,7 @@
   <input id="record" type="button" value="🔴 Start Recording Clip" disabled />
   
   <div style="flex-grow: 1;"></div> <label style="font-weight: bold; color: #555; margin-left: 10px;">Scale:</label>
-  <input id="scaleInput" type="number" value="80" min="10" max="200" style="width: 50px; padding: 5px; border-radius: 5px; border: 1px solid #ccc;" />
+  <input id="scaleInput" type="number" value="80" min="50" max="100" style="width: 50px; padding: 5px; border-radius: 5px; border: 1px solid #ccc;" />
   <span style="color: #555;">%</span>
 
   <span id="status">Waiting for emulator...</span>
