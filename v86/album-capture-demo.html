@@ -89,6 +89,8 @@
                     ...common_specs,
                     memory_size: 64 * 1024 * 1024,
                     vga_memory_size: 8 * 1024 * 1024,
+                    hda: { url: "../assets/doom-hd.img.gz" },
+                    initial_state: { url: "../assets/doom-attract-state.bin.gz" },
                 },
                 android: {
                     ...common_specs,
@@ -111,18 +113,19 @@
                 }
 
                 const specs = { ...configurations[configKey] };
+                let runtimeSpecs = {...specs};
                 statusLabel.textContent = `Initializing ${configKey}...`;
                 statusLabel.style.color = "#333";
 
                 try {
                     if (configKey === "msdos") {
                         console.log("[loadMachine] Preloading MS-DOS HDA and initial state...");
-                        const buffer = await prepareGzFile("../assets/doom-hd.img.gz");
-                        const initialStateBuffer = await prepareGzFile("../assets/doom-attract-state.bin.gz");
-                        if (!buffer || !initialStateBuffer) throw new Error("HDA buffer or initial state buffer is null");
+                        const hdaBuffer = await prepareGzFile( specs.hda.url );
+                        const initialStateBuffer = await prepareGzFile( specs.initial_state.url );
+                        if (!hdaBuffer || !initialStateBuffer) throw new Error("HDA buffer or initial state buffer is null");
 
-                        specs.hda = { buffer };
-                        specs.initial_state = { buffer: initialStateBuffer };
+                        runtimeSpecs.hda = { buffer: hdaBuffer };
+                        runtimeSpecs.initial_state = { buffer: initialStateBuffer };
                         console.log("[loadMachine] HDA buffer ready:", specs.hda);
                         console.log("[loadMachine] Initial state buffer ready:", specs.initial_state);
                     }
@@ -214,7 +217,7 @@
                         const file = await handle.getFile();
                         const manifest = JSON.parse(await file.text());
 
-                        const currentSpec = { ...configurations[machineSelect.value] };
+                        const currentSpec = { ...capturer.v86_specs };
                         delete currentSpec.screen_container;
                         const manifestSpec = { ...manifest.machine_spec };
                         delete manifestSpec.screen_container;
