@@ -132,9 +132,12 @@ input[type="button"], button {
 }
 
 input[type="button"]:disabled, button:disabled {
-  background-color: #ccc;
+  background-color: #ccc !important; /* Force gray over ID styles */
+  color: #666 !important;           /* Dim the text */
   cursor: not-allowed;
-  transform: none;
+  transform: none !important;       /* Prevent click scales */
+  box-shadow: none !important;      /* Remove glowing effects */
+  animation: none !important;       /* Stop pulsing animations */
 }
 
 input[type="button"]:hover:not(:disabled), button:hover:not(:disabled) {
