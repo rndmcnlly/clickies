@@ -1,245 +1,345 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Album Capturer</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Album Capturer</title>
 
-  <link rel="stylesheet" href="album-style.css">
+    <link rel="stylesheet" href="album-style.css">
 
-  <script src="libv86.js"></script>
+    <script src="libv86.js"></script>
 
-  <script src="https://cdn.jsdelivr.net/npm/@msgpack/msgpack@3.1.1/dist.umd/msgpack.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/fast-json-patch@3.1.1/dist/fast-json-patch.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@msgpack/msgpack@3.1.1/dist.umd/msgpack.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fast-json-patch@3.1.1/dist/fast-json-patch.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
 
-  <script src="../savestreams_updated.js"></script>
+    <script src="../savestreams_updated.js"></script>
 
-  <script src="album_capturer.js"></script>
+    <script src="album_capturer.js"></script>
 </head>
+
 <body>
 
-<script>
-  "use strict";
+    <script>
+        "use strict";
 
-  window.onload = function () {
-    const statusLabel = document.getElementById("status");
-    let emulator = null;
-    let capturer = null;
+        window.onload = function () {
+            // --- 1. UI References (Moved to top) ---
+            const statusLabel = document.getElementById("status");
+            const screenContainer = document.getElementById("screen_container");
+            const machineSelect = document.getElementById("machineSelect");
+            const saveButton = document.getElementById("save");
+            const recordButton = document.getElementById("record");
+            const scaleInput = document.getElementById("scaleInput");
+            const playerWrapper = document.getElementById("player-wrapper");
+            const browserWarning = document.getElementById("browser-warning");
 
-    // 0. Check Dependencies
-    if (typeof V86 === 'undefined') {
-        statusLabel.textContent = "Error: V86 library not loaded.";
-        statusLabel.style.color = "red";
-        return;
-    }
-    if (typeof AlbumCapturer === 'undefined') {
-        statusLabel.textContent = "Error: AlbumCapturer library not loaded.";
-        statusLabel.style.color = "red";
-        return;
-    }
+            let emulator = null;
+            let capturer = null;
 
-    // 1. Define emulator specs
-    let specs = {
-      wasm_path: "../assets/v86.wasm",
-      memory_size: 32 * 1024 * 1024,
-      vga_memory_size: 2 * 1024 * 1024,
-      screen_container: document.getElementById("screen_container"),
-      bios: {
-        url: "../assets/seabios.bin.file",
-      },
-      vga_bios: {
-        url: "../assets/vgabios.bin.file",
-      },
-      cdrom: {
-        url: "../assets/dsl-4.11.rc2.iso.file",
-      },
-      autostart: true,
-      initial_state: {
-        url: "../assets/v86state-dsl.bin.file",
-      },
-    };
+            // Utility: preload and decompress the gz file
+            async function prepareGzFile(url) {
+                console.log("[prepareGzFile] Fetching:", url);
 
-    // 2. Initialize Emulator with Error Handling
-    try {
-        statusLabel.textContent = "Initializing Emulator...";
-        
-        emulator = window.emulator = new V86(specs);
+                try {
+                    const resp = await fetch(url);
+                    console.log("[prepareGzFile] fetch status:", resp.status);
 
-        // --- GLOBAL ERROR LISTENER ---
-        emulator.add_listener("emulator-error", (error) => {
-            console.error("EMULATOR ERROR:", error);
-            statusLabel.textContent = `Emulator Error: ${error.message || "Check console"}`;
-            statusLabel.style.color = "red";
-        });
+                    if (!resp.ok) throw new Error("Failed to fetch: " + resp.status);
 
-    } catch (e) {
-        console.error("V86 Initialization Error:", e);
-        statusLabel.textContent = `Init Failed: ${e.message}`;
-        statusLabel.style.color = "red";
-        return;
-    }
+                    const gz = new Uint8Array(await resp.arrayBuffer());
+                    console.log("[prepareGzFile] gzipped bytes:", gz.length);
 
-    // Mouse Lock Support
-    const screen_container = document.getElementById("screen_container");
-    screen_container.addEventListener("click", () => {
-        if (emulator) {
-            scaleInput.blur();
-            emulator.lock_mouse();
-        }
-    });
+                    const decompressed = pako.ungzip(gz);
+                    console.log("[prepareGzFile] decompressed bytes:", decompressed.length);
 
-    // 3. Initialize AlbumCapturer
-    capturer = new AlbumCapturer(emulator, specs);
-
-    // 4. Get UI elements
-    let saveButton = document.getElementById("save");
-    let recordButton = document.getElementById("record");
-    
-    // 5. Handle Scale Input
-    let scaleInput = document.getElementById("scaleInput");
-    let playerWrapper = document.getElementById("player-wrapper");
-
-    scaleInput.addEventListener("input", () => {
-        // Clamp value between 50 and 100
-        let val = parseInt(scaleInput.value);
-        if (val < 50) val = 50;
-        if (val > 100) val = 100;
-        
-        playerWrapper.style.width = val + "%";
-    });
-
-    // 6. Main Logic: Status Updates
-    emulator.add_listener("emulator-ready", function () {
-      console.log("EVENT: emulator-ready");
-      statusLabel.textContent = "Emulator Initialized. Booting...";
-    });
-    
-    emulator.add_listener("emulator-loaded", async function () {
-      console.log("EVENT: emulator-loaded");
-      statusLabel.textContent = "Emulator Running. Setting up recorder...";
-      
-      try {
-          const canvas = document.getElementById("emulator-canvas");
-      // Initialize the capturer (fetches scancodes, etc.)
-          await capturer.init(canvas);
-
-          // Set initial scale
-          scaleInput.dispatchEvent(new Event('input'));
-          
-          // Final Status Update
-          statusLabel.textContent = "Ready. Select an album folder to begin.";
-          statusLabel.style.color = "#28a745"; // Green for ready
-
-          // --- Create/Open Album Button ---
-          saveButton.addEventListener("click", async () => {
-        console.log("Creating album...")
-            saveButton.blur();
-            statusLabel.textContent = "Select a folder...";
-            statusLabel.style.color = "#666";
-            
-            const success = await capturer.createAlbum();
-            
-            if (success) {
-              saveButton.disabled = true;
-              saveButton.value = "📂 Album Open";
-              recordButton.disabled = false;
-              statusLabel.textContent = "Ready to record.";
-          console.log("Album created/opened.");
-            } else {
-              statusLabel.textContent = "Album selection cancelled.";
+                    return decompressed.buffer;
+                } catch (err) {
+                    console.error("[prepareGzFile] ERROR:", err);
+                    return null;
+                }
             }
-          });
 
-          // --- Start/Stop Recording Button ---
-          recordButton.addEventListener("click", async () => {
-        recordButton.blur(); // Remove focus so Spacebar works in emulator
-            
-            if (capturer.isRecording) {
-          console.log("Stopping recording...");
-              recordButton.disabled = true;
-              recordButton.classList.remove("recording");
-              recordButton.value = "⏳ Finalizing clickie (may take >1 min)...";
-              statusLabel.textContent = "Encoding video & compressing states. Please wait...";
-
-                // --- DEFINE UI CALLBACK ---
-                const onProgress = (current, total) => {
-                    const percent = Math.round((current / total) * 100);
-                    statusLabel.textContent = `Compressing state ${current} of ${total} (${percent}%)`;
-                    statusLabel.style.color = "#e67e22"; // Orange color
-                };
-              
-              await capturer.stopRecording(onProgress);
-              
-              recordButton.disabled = false;
-              recordButton.value = "🔴 Start Recording Another Clip";
-          statusLabel.textContent = "Clickie saved! Ready for next.";
-          console.log("Recording stopped and clickie finalized.");
-              
-            } else {
-              // STARTING
-              statusLabel.textContent = "Recording... (Click screen to capture mouse)";
-              statusLabel.style.color = "#dc3545"; // Red recording color
-              await capturer.startRecording();
-              recordButton.value = "⏹ Stop Recording";
-              recordButton.classList.add("recording");
+            // --- 0. Check Dependencies ---
+            if (typeof V86 === 'undefined' || typeof AlbumCapturer === 'undefined') {
+                statusLabel.textContent = "Error: Libraries not loaded.";
+                statusLabel.style.color = "red";
+                return;
             }
-          });
 
-      } catch (err) {
-          console.error("Setup Error:", err);
-          statusLabel.textContent = "Error setting up recorder: " + err.message;
-          statusLabel.style.color = "red";
-      }
-    });
-  };
-</script>
+            // --- 2. Define Configurations ---
+            const common_specs = {
+                wasm_path: "../assets/v86.wasm",
+                screen_container: screenContainer,
+                bios: { url: "../assets/seabios.bin.file" },
+                vga_bios: { url: "../assets/vgabios.bin.file" },
+                autostart: true,
+            };
 
-<div id="browser-warning">
-    <strong>⚠️ Browser Compatibility Warning:</strong> This application requires the 
-    <code>window.showDirectoryPicker</code> API (File System Access), which is not supported in your current browser. 
-    <br>
-    Please use a desktop version of <strong>Chrome, Edge, or Opera</strong>.
-    <br>
-    <a href="https://developer.mozilla.org/en-US/docs/Web/API/Window/showDirectoryPicker" target="_blank">Learn more at MDN</a>.
-</div>
+            const configurations = {
+                dsl: {
+                    ...common_specs,
+                    memory_size: 32 * 1024 * 1024,
+                    vga_memory_size: 2 * 1024 * 1024,
+                    cdrom: { url: "../assets/dsl-4.11.rc2.iso.file" },
+                    initial_state: { url: "../assets/v86state-dsl.bin.file" },
+                },
+                msdos: {
+                    ...common_specs,
+                    memory_size: 64 * 1024 * 1024,
+                    vga_memory_size: 8 * 1024 * 1024,
+                },
+                android: {
+                    ...common_specs,
+                    memory_size: 256 * 1024 * 1024,
+                    vga_memory_size: 8 * 1024 * 1024,
+                    cdrom: { url: "../assets/android-x86-1.6-r2.iso" },
+                }
+            };
 
-<h1>Album Capturer</h1>
+            // --- 3. Load Machine Logic ---
+            async function loadMachine(configKey) {
+                saveButton.disabled = true;
+                recordButton.disabled = true;
+                machineSelect.disabled = true;
 
-<div id="instructions">
-    <h3>Instructions & Tips</h3>
-    <ul>
-        <li><strong>Step 1:</strong> Click <em>"Create/Open Album Folder"</em> to select an empty folder for your recordings.</li>
-        <li><strong>Step 2:</strong> Click <em>"Start Recording Clip"</em> to begin capturing video, inputs, and machine states.</li>
-        <li><strong>Step 3:</strong> Interact with the VM! Click the screen to lock your mouse. Press <strong>ESC</strong> to unlock.</li>
-        <li><strong>Step 4:</strong> Click <em>"Stop Recording"</em> when finished.</li>
-        <li><strong>⚠️ Note:</strong> Finalizing a clip involves heavy compression. It <strong>may take over a minute</strong> for long clips. The browser might freeze briefly.</li>
-    </ul>
-</div>
+                if (emulator) {
+                    emulator.stop();
+                    emulator.destroy();
+                    emulator = null;
+                }
 
-<div id="player-wrapper">
-    <div id="screen_container" class="capturer-visible">
-        <div style="white-space: pre; font: 14px monospace; line-height: 14px"></div>
-        <canvas id="emulator-canvas"></canvas>
+                const specs = { ...configurations[configKey] };
+                statusLabel.textContent = `Initializing ${configKey}...`;
+                statusLabel.style.color = "#333";
+
+                try {
+                    if (configKey === "msdos") {
+                        console.log("[loadMachine] Preloading MS-DOS HDA and initial state...");
+                        const buffer = await prepareGzFile("../assets/doom-hd.img.gz");
+                        const initialStateBuffer = await prepareGzFile("../assets/doom-attract-state.bin.gz");
+                        if (!buffer || !initialStateBuffer) throw new Error("HDA buffer or initial state buffer is null");
+
+                        specs.hda = { buffer };
+                        specs.initial_state = { buffer: initialStateBuffer };
+                        console.log("[loadMachine] HDA buffer ready:", specs.hda);
+                        console.log("[loadMachine] Initial state buffer ready:", specs.initial_state);
+                    }
+
+                    // android disabled for now
+                    // if (configKey === "android") {
+                    //     console.log("[loadMachine] Preloading Android x86 CD-ROM and initial state...");
+                    //     const buffer = await prepareGzFile("../assets/android-x86-1.6-r2.iso.gz");
+                    //     if (!buffer) throw new Error("CD-ROM buffer is null");
+
+                    //     specs.cdrom = { buffer };
+                    //     console.log("[loadMachine] CDROM buffer ready:", specs.hda);
+
+                    // }
+
+                    console.log("[loadMachine] Final specs passed to V86:", specs);
+
+                    // Only ONE instantiation of V86
+                    emulator = window.emulator = new V86(specs);
+                    capturer = new AlbumCapturer(emulator, specs);
+
+                    emulator.add_listener("emulator-error", (err) => {
+                        console.error("[V86] Emulator error:", err);
+                        statusLabel.textContent = "Error: " + (err.message || "Check console");
+                        statusLabel.style.color = "red";
+                        machineSelect.disabled = false;
+                    });
+
+                    emulator.add_listener("emulator-loaded", async () => {
+                        console.log("[V86] Emulator loaded successfully");
+                        const canvas = document.getElementById("emulator-canvas");
+                        await capturer.init(canvas);
+                        scaleInput.dispatchEvent(new Event("input"));
+
+                        statusLabel.textContent = `Ready: ${configKey}. Select album to record.`;
+                        statusLabel.style.color = "#28a745";
+                        saveButton.disabled = false;
+
+                        if (!capturer.albumDirHandle) {
+                            machineSelect.disabled = false;
+                        }
+                    });
+
+                } catch (e) {
+                    console.error("[loadMachine] Initialization failed:", e);
+                    statusLabel.textContent = `Init Failed: ${e.message}`;
+                    statusLabel.style.color = "red";
+                    machineSelect.disabled = false;
+                }
+            }
+
+            // --- 4. Event Listeners ---
+
+            // Machine Switcher
+            machineSelect.addEventListener("change", (e) => {
+                machineSelect.blur();
+                loadMachine(e.target.value);
+            });
+
+            // Mouse Lock
+            screenContainer.addEventListener("click", () => {
+                if (emulator) {
+                    scaleInput.blur();
+                    emulator.lock_mouse();
+                }
+            });
+
+            // Scale Logic
+            scaleInput.addEventListener("input", () => {
+                // Clamp value between 50 and 100
+                let val = parseInt(scaleInput.value);
+                if (val < 50) val = 50;
+                if (val > 100) val = 100;
+
+                playerWrapper.style.width = val + "%";
+            });
+
+            // Album Logic (Lockdown on Success)
+            saveButton.addEventListener("click", async () => {
+                saveButton.blur();
+                statusLabel.textContent = "Select a folder...";
+
+                const success = await capturer.createAlbum();
+
+                if (success) {
+                    // --- Manifest Check ---
+                    try {
+                        const handle = await capturer.albumDirHandle.getFileHandle("manifest.json");
+                        const file = await handle.getFile();
+                        const manifest = JSON.parse(await file.text());
+
+                        const currentSpec = { ...configurations[machineSelect.value] };
+                        delete currentSpec.screen_container;
+                        const manifestSpec = { ...manifest.machine_spec };
+                        delete manifestSpec.screen_container;
+
+                        if (JSON.stringify(currentSpec) !== JSON.stringify(manifestSpec)) {
+                            alert("⚠️ Spec Mismatch! Switch machine or pick another folder.");
+                            capturer.albumDirHandle = null;
+                            statusLabel.textContent = "Cancelled (Spec mismatch).";
+                            statusLabel.style.color = "red";
+                            return;
+                        }
+                    } catch (e) { console.warn("Manifest check skipped:", e); }
+
+                    // --- C. FINAL LOCKDOWN ---
+                    // Disable selector PERMANENTLY for this session
+                    machineSelect.disabled = true;
+                    saveButton.disabled = true;
+
+                    saveButton.value = "📂 Album Open";
+                    recordButton.disabled = false;
+                    statusLabel.textContent = "Ready to record.";
+                    statusLabel.style.color = "#28a745";
+                } else {
+                    statusLabel.textContent = "Album selection cancelled.";
+                }
+            });
+
+            // Recording Logic
+            recordButton.addEventListener("click", async () => {
+                recordButton.blur();
+                if (capturer.isRecording) {
+                    recordButton.disabled = true;
+                    recordButton.classList.remove("recording");
+                    recordButton.value = "⏳ Finalizing clickie (may take >1 min)...";
+                    statusLabel.textContent = "Encoding video & compressing states. Please wait...";
+
+                    const onProgress = (current, total) => {
+                        const percent = Math.round((current / total) * 100);
+                        statusLabel.textContent = `Compressing state ${current} of ${total} (${percent}%)`;
+                        statusLabel.style.color = "#e67e22"; // Orange color
+                    };
+
+                    await capturer.stopRecording(onProgress);
+
+                    recordButton.disabled = false;
+                    recordButton.value = "🔴 Start Recording Another Clip";
+                    statusLabel.textContent = "Clickie saved! Ready for next.";
+                    console.log("Recording stopped and clickie finalized.");
+
+                } else {
+                    statusLabel.textContent = "Recording... (Click screen to lock mouse)";
+                    statusLabel.style.color = "#dc3545";
+                    await capturer.startRecording();
+                    recordButton.value = "⏹ Stop Recording";
+                    recordButton.classList.add("recording");
+                }
+            });
+
+
+        };
+    </script>
+
+    <div id="browser-warning">
+        <strong>⚠️ Browser Compatibility Warning:</strong> This application requires the
+        <code>window.showDirectoryPicker</code> API (File System Access), which is not supported in your current
+        browser.
+        <br>
+        Please use a desktop version of <strong>Chrome, Edge, or Opera</strong>.
+        <br>
+        <a href="https://developer.mozilla.org/en-US/docs/Web/API/Window/showDirectoryPicker" target="_blank">Learn more
+            at MDN</a>.
     </div>
-</div>
 
-<div id="controls">
-  <input id="save" type="button" value="📂 Create/Open Album Folder" />
-  <input id="record" type="button" value="🔴 Start Recording Clip" disabled />
-  
-  <div style="flex-grow: 1;"></div> <label style="font-weight: bold; color: #555; margin-left: 10px;">Scale:</label>
-  <input id="scaleInput" type="number" value="80" min="50" max="100" style="width: 50px; padding: 5px; border-radius: 5px; border: 1px solid #ccc;" />
-  <span style="color: #555;">%</span>
+    <h1>Album Capturer</h1>
 
-  <span id="status">Waiting for emulator...</span>
-</div>
+    <div id="instructions">
+        <h3>Instructions & Tips</h3>
+        <ul>
+            <li><strong>Step 1:</strong> Select your Machine Type (DSL, MS-DOS, Android). <em>You cannot change this
+                    after opening an album.</em></li>
+            <li><strong>Step 2:</strong> Wait for the emulator to initialize (Wait for Status: <span
+                    style="color: #28a745;">Ready</span>).</li>
+            <li><strong>Step 3:</strong> Click <em>"Create/Open Album Folder"</em>. This <strong>locks</strong> your
+                machine selection for the session.</li>
+            <li><strong>Step 4:</strong> Click <em>"Start Recording Clip"</em> to begin capturing video, inputs, and
+                states.</li>
+            <li><strong>Step 5:</strong> Interact! Click screen to lock mouse (<strong>ESC</strong> to unlock). Click
+                <em>"Stop"</em> when done.</li>
+            <li><strong>⚠️ Note:</strong> Finalizing a clip involves heavy compression and may take over a minute.</li>
+        </ul>
+    </div>
 
-<script>
-    // Check for File System Access API support
-    if (!('showDirectoryPicker' in window)) {
-        document.getElementById('browser-warning').style.display = 'block';
-    }
-</script>
+    <div id="player-wrapper">
+        <div id="screen_container" class="capturer-visible">
+            <div style="white-space: pre; font: 14px monospace; line-height: 14px"></div>
+            <canvas id="emulator-canvas"></canvas>
+        </div>
+    </div>
+
+    <div id="controls">
+        <select id="machineSelect">
+            <option disabled selected>Choose machine</option>
+            <option value="dsl">DSL Linux</option>
+            <option value="msdos">MS-DOS</option>
+            <option disabled value="android">Android x86</option>
+        </select>
+        <input id="save" type="button" value="📂 Create/Open Album Folder" disabled />
+        <input id="record" type="button" value="🔴 Start Recording Clip" disabled />
+
+        <div style="flex-grow: 1;"></div> <label
+            style="font-weight: bold; color: #555; margin-left: 10px;">Scale:</label>
+        <input id="scaleInput" type="number" value="80" min="50" max="100"
+            style="width: 50px; padding: 5px; border-radius: 5px; border: 1px solid #ccc;" />
+        <span style="color: #555;">%</span>
+
+        <span id="status">Waiting for emulator...</span>
+    </div>
+
+    <script>
+        // Check for File System Access API support
+        if (!('showDirectoryPicker' in window)) {
+            document.getElementById('browser-warning').style.display = 'block';
+        }
+    </script>
 
 </body>
+
 </html>
