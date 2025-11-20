@@ -148,9 +148,15 @@ function hashBlock(block) {
 }
 
 // encode a sequence of v86 savestates into a single compressed savestream
-// params - savestatesArray (Array of Uint8Array): the array of v86 savestate buffers, blockSize (int): the alignment block size, superBlockMultiple (int): the number of blocks per superblock
+// params - savestatesIterator (Array or AsyncIterable of Uint8Array): the sequence of v86 savestate buffers
+//          blockSize (int): the alignment block size
+//          superBlockMultiple (int): the number of blocks per superblock
+//          totalCount (int): optional total count for progress tracking (if iterator doesn't have length)
 // returns - savestream (Uint8Array): the compressed savestream buffer
-async function encode(savestatesArray, {blockSize = 256, superBlockMultiple = 256, onProgress = null} = {}) {
+async function encode(savestatesIterator, {blockSize = 256, superBlockMultiple = 256, onProgress = null, totalCount = null} = {}) {
+
+    // Use totalCount if provided, otherwise try .length (for Arrays), else 0
+    const total = totalCount !== null ? totalCount : (savestatesIterator.length || 0);
 
     async function reportProgress(index, total) {
         if (onProgress) {
@@ -177,10 +183,10 @@ async function encode(savestatesArray, {blockSize = 256, superBlockMultiple = 25
     // keep tract of previous savestate info for diffing
     let prevInfo = {};
 
-    await reportProgress(0, savestatesArray.length);
+    await reportProgress(0, total);
 
-    // main encoding loop
-    for (const savestate of savestatesArray) {
+    // main encoding loop (supports `for await` to handle both Arrays and Async Generators)
+    for await (const savestate of savestatesIterator) {
         // split savestate into components
         const { headerBlock, infoBlock, bufferBlock } = splitV86Savestate(savestate);
 
@@ -245,7 +251,7 @@ async function encode(savestatesArray, {blockSize = 256, superBlockMultiple = 25
             superIdSequence
         });
 
-        await reportProgress(incrementalSaves.length, savestatesArray.length);
+        await reportProgress(incrementalSaves.length, total);
 
     }
 

@@ -343,7 +343,6 @@ class AlbumCapturer {
      */
     async _stopStateRecordingAndEncode(onProgress) {
         clearInterval(this.saveStateInterval);
-        let savestateBuffers = [];
         
         const sortedFilenames = [...this.stateSequenceFilenames].sort((a, b) => {
              const numA = parseInt(a.match(/\((\d+)\)/)[1], 10);
@@ -351,15 +350,21 @@ class AlbumCapturer {
              return numA - numB;
         });
 
-        console.log("Reading states from private FS...");
-        for (let filename of sortedFilenames) {
-            const handle = await this.privateDirHandle.getFileHandle(filename);
-            const file = await handle.getFile();
-            savestateBuffers.push(new Uint8Array(await file.arrayBuffer()));
-            await this.privateDirHandle.removeEntry(filename);
+        // GENERATOR: Stream states one by one instead of loading all into an array
+        const self = this;
+        async function* stateGenerator() {
+            console.log("Reading states from private FS...");
+            for (let filename of sortedFilenames) {
+                const handle = await self.privateDirHandle.getFileHandle(filename);
+                const file = await handle.getFile();
+                const buffer = new Uint8Array(await file.arrayBuffer());
+                yield buffer;
+                // Delete file immediately after yielding to free disk/memory pressure
+                await self.privateDirHandle.removeEntry(filename);
+            }
         }
-        
-        console.log(`Encoding ${savestateBuffers.length} states...`);
+
+        console.log(`Encoding ${sortedFilenames.length} states...`);
         if (!window.v86Savestream || !window.v86Savestream.encode) {
             throw new Error("v86Savestream.encode is not available. Did savestreams_updated.js load?");
         }
@@ -370,14 +375,12 @@ class AlbumCapturer {
             await this.emulator.stop();
         }
 
-        // Encode Savestream 
-        const encodedStream = await window.v86Savestream.encode(savestateBuffers, { 
-            onProgress: onProgress 
+        // Encode Savestream using the Generator
+        const encodedStream = await window.v86Savestream.encode(stateGenerator(), { 
+            onProgress: onProgress,
+            totalCount: sortedFilenames.length // Pass total explicitly since generator lacks .length
         });
         
-        // Free memory explicitly to help prevent browser lag/crash after heavy operation
-        savestateBuffers = null; 
-
         // Resume Emulator
         if (wasRunning) {
             await this.emulator.run();
