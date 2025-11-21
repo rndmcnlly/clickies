@@ -97,6 +97,7 @@
                     memory_size: 256 * 1024 * 1024,
                     vga_memory_size: 8 * 1024 * 1024,
                     cdrom: { url: "../assets/android-x86-1.6-r2.iso" },
+                    initial_state: { url: "../assets/android-initial-state.bin.gz" },
                 }
             };
 
@@ -126,25 +127,24 @@
 
                         runtimeSpecs.hda = { buffer: hdaBuffer };
                         runtimeSpecs.initial_state = { buffer: initialStateBuffer };
-                        console.log("[loadMachine] HDA buffer ready:", specs.hda);
-                        console.log("[loadMachine] Initial state buffer ready:", specs.initial_state);
+                        console.log("[loadMachine] HDA buffer ready:", runtimeSpecs.hda);
+                        console.log("[loadMachine] Initial state buffer ready:", runtimeSpecs.initial_state);
                     }
 
-                    // android disabled for now
-                    // if (configKey === "android") {
-                    //     console.log("[loadMachine] Preloading Android x86 CD-ROM and initial state...");
-                    //     const buffer = await prepareGzFile("../assets/android-x86-1.6-r2.iso.gz");
-                    //     if (!buffer) throw new Error("CD-ROM buffer is null");
+                    if (configKey === "android") {
+                        console.log("[loadMachine] Preloading Android x86 initial state...");
+                        const buffer = await prepareGzFile( specs.initial_state.url );
+                        if (!buffer) throw new Error("Initial state buffer is null");
 
-                    //     specs.cdrom = { buffer };
-                    //     console.log("[loadMachine] CDROM buffer ready:", specs.hda);
+                        runtimeSpecs.initial_state = { buffer };
+                        console.log("[loadMachine] Initial state buffer ready:", runtimeSpecs.initial_state);
 
-                    // }
+                    }
 
-                    console.log("[loadMachine] Final specs passed to V86:", specs);
+                    console.log("[loadMachine] Runtime specs passed to V86:", runtimeSpecs);
 
-                    // Only ONE instantiation of V86
-                    emulator = window.emulator = new V86(specs);
+                    // Initialize Emulator and Capturer
+                    emulator = window.emulator = new V86(runtimeSpecs);
                     capturer = new AlbumCapturer(emulator, specs);
 
                     emulator.add_listener("emulator-error", (err) => {
@@ -322,7 +322,7 @@
             <option disabled selected>Choose machine</option>
             <option value="dsl">DSL Linux</option>
             <option value="msdos">MS-DOS</option>
-            <option disabled value="android">Android x86</option>
+            <option value="android">Android x86</option>
         </select>
         <input id="save" type="button" value="📂 Create/Open Album Folder" disabled />
         <input id="record" type="button" value="🔴 Start Recording Clip" disabled />
