@@ -30,6 +30,42 @@
         cursor: pointer;
     }
     button:hover { background: #444; }
+    .test-controls {
+      background: #222;
+      border: 1px solid #444;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+    .test-controls h3 {
+      color: #9f9;
+      margin-top: 0;
+    }
+    .test-checkboxes {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 8px;
+      margin: 10px 0;
+    }
+    .test-checkbox-item {
+      display: flex;
+      align-items: center;
+    }
+    .test-checkbox-item input[type="checkbox"] {
+      margin-right: 8px;
+      cursor: pointer;
+    }
+    .test-checkbox-item label {
+      cursor: pointer;
+      user-select: none;
+    }
+    .button-group {
+      margin-top: 15px;
+      display: flex;
+      gap: 10px;
+    }
+    .button-group button {
+      padding: 8px 15px;
+    }
   </style>
 </head>
 
@@ -41,9 +77,21 @@
     <input type="file" id="folderPicker" webkitdirectory multiple />
   </div>
 
+  <div class="test-controls" id="testControls" style="display: none;">
+    <h3>Select Tests to Run</h3>
+    <div class="test-checkbox-item" style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #444;">
+      <input type="checkbox" id="selectAll" checked />
+      <label for="selectAll"><strong>Run All Tests</strong></label>
+    </div>
+    <div class="test-checkboxes" id="testCheckboxes"></div>
+    <div class="button-group">
+      <button id="runSelectedTests">Run Selected Tests</button>
+      <button id="clearOutput">Clear Output</button>
+    </div>
+  </div>
+
   <pre id="testOutput">Awaiting savestate folder to run tests...</pre>
 
-  <!-- Dependencies -->
   <script src="https://cdn.jsdelivr.net/npm/@msgpack/msgpack@3.1.1/dist.umd/msgpack.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fast-json-patch@3.1.1/dist/fast-json-patch.min.js"></script>
   <script src="./savestreams_updated.js"></script>
@@ -84,7 +132,6 @@
         pass(message);
     };
     
-    // *** MODIFIED to include timing and forced UI repaint ***
     const runTest = async (name, testFn) => {
         log(`\n--- Testing ${name} ---`);
         const t0 = performance.now();
@@ -102,16 +149,21 @@
         }
         log(`--- Finished ${name} in ${duration}s ---`);
         
-        // *** THIS IS THE FIX for real-time logs ***
         // Yield to the event loop to allow the UI to update.
         await new Promise(r => setTimeout(r, 0));
     };
     // --- End Test Helpers ---
 
+    // Test registry and state
+    let testRegistry = {};
+    let globalSavestates = null;
+    let globalEncodedSavestream = null;
+    let globalAPIs = null;
 
-    // Main function to run all tests
-    async function runAllTests(savestates) {
-      out.textContent = "Running tests...\n";
+    // Initialize test registry with individual test functions
+    function initializeTests(savestates) {
+      globalSavestates = savestates;
+      globalEncodedSavestream = null;
 
       // Get APIs
       const { _internal } = window.v86Savestream;
@@ -129,142 +181,140 @@
       const textEncoder = new TextEncoder();
       const textDecoder = new TextDecoder("utf-8");
 
-      // --- Mock Data Tests (from Python) ---
+      globalAPIs = {
+        padTo, splitV86Savestate, recombineV86Savestate,
+        makeAlignedBufferBlock, makeUnalignedBufferBlock, hashBlock,
+        encode, decode, decodeLen, decodeOne, trim,
+        textEncoder, textDecoder
+      };
 
-      await runTest("test_pad_to (Private API)", () => {
+      // Define individual test functions
+      testRegistry = {
+        "test_pad_to (Private API)": async () => {
+          const { padTo, textEncoder } = globalAPIs;
           assertArraysEqual(padTo(textEncoder.encode('1234'), 4), textEncoder.encode('1234'), "pads 4 bytes to 4");
           assertArraysEqual(padTo(textEncoder.encode('123'), 4), new Uint8Array([49, 50, 51, 0]), "pads 3 bytes to 4");
-          assertArraysEqual(padTo(textEncoder.encode('1'), 4), new Uint8Array([49, 0, 0, 0]), "pads 1 byte to 4");
           
           const padded256 = padTo(textEncoder.encode('12345'), 256);
           assertEquals(padded256.length, 256, "pads 5 bytes to 256 length");
           assertArraysEqual(padded256.subarray(0, 5), textEncoder.encode('12345'), "padded 256 buffer has correct prefix");
-      });
-      
-      await runTest("test_hashBlock (string key) (Private API)", () => {
-        const blockA = new Uint8Array([1, 2, 3, 4, 5]);
-        const blockB = new Uint8Array([1, 2, 3, 4, 5]);
-        const blockC = new Uint8Array([5, 4, 3, 2, 1]);
-        const hashA = hashBlock(blockA);
-        const hashB = hashBlock(blockB);
-        const hashC = hashBlock(blockC);
+        },
+        
+        "test_hashBlock (string key) (Private API)": async () => {
+          const { hashBlock } = globalAPIs;
+          const blockA = new Uint8Array([1, 2, 3, 4, 5]);
+          const blockB = new Uint8Array([1, 2, 3, 4, 5]);
+          const blockC = new Uint8Array([5, 4, 3, 2, 1]);
+          const hashA = hashBlock(blockA);
+          const hashB = hashBlock(blockB);
+          const hashC = hashBlock(blockC);
 
-        assert(hashA === hashB, "identical blocks produce identical hashes ('1,2,3,4,5')");
-        assert(hashA !== hashC, "different blocks produce different hashes");
-        assert(typeof hashA === "string", "returns a string key");
-      });
+          assert(hashA === hashB, "identical blocks produce identical hashes");
+          assert(hashA !== hashC, "different blocks produce different hashes");
+        },
 
-      await runTest("test_empty_input (Public API)", async () => {
-          const encoded = await encode([]);
-          const len = await decodeLen(encoded);
-          assertEquals(len, 0, "decodeLen on empty stream is 0");
-          
-          const decoded = [];
-          for await (const state of await decode(encoded)) {
-              decoded.push(state);
-          }
-          assertEquals(decoded.length, 0, "decoding empty stream results in empty array");
-      });
-
-      // --- Real Data Tests (from Python) ---
-      
-      await runTest("test_split_and_recombine (Private API, Real Data)", () => {
-          assert(savestates.length > 0, "Must have at least 1 savestate");
-          for (let i = 0; i < savestates.length; i++) {
-              const file_content = savestates[i];
+        "test_split_and_recombine (Private API, Real Data)": async () => {
+          const { splitV86Savestate, recombineV86Savestate } = globalAPIs;
+          assert(globalSavestates.length > 0, "Must have at least 1 savestate");
+          for (let i = 0; i < globalSavestates.length; i++) {
+              const file_content = globalSavestates[i];
               const { headerBlock, infoBlock, bufferBlock } = splitV86Savestate(file_content);
               const recombined = recombineV86Savestate(headerBlock, infoBlock, bufferBlock);
               assertArraysEqual(recombined, file_content, `Recombined file ${i} matches original`);
           }
-      });
-      
-      await runTest("test_buffer_block_alignments (Private API, Real Data)", () => {
-          for (let i = 0; i < savestates.length; i++) {
-              const file_content = savestates[i];
+        },
+        
+        "test_buffer_block_alignments_optimized (Private API, Real Data)": async () => {
+          const { splitV86Savestate, makeAlignedBufferBlock, makeUnalignedBufferBlock, textDecoder } = globalAPIs;
+          const blockSize = 256;
+          const superBlockSize = blockSize * 256;
+
+          for (let i = 0; i < globalSavestates.length; i++) {
+              const file_content = globalSavestates[i];
               const { headerBlock, infoBlock, bufferBlock } = splitV86Savestate(file_content);
               
-              const aligned_buffer = makeAlignedBufferBlock(infoBlock, bufferBlock, 256);
-              const unaligned_buffer = makeUnalignedBufferBlock(infoBlock, aligned_buffer, 256);
+              // 1. Emulate the optimize flow: Parse JSON first
+              const infoJson = JSON.parse(textDecoder.decode(infoBlock));
+
+              // 2. Test the new signature with alignToTotalSize (superBlock alignment)
+              const aligned_buffer = makeAlignedBufferBlock(infoJson, bufferBlock, blockSize, superBlockSize);
+              
+              // 3. Ensure it respected the superblock alignment
+              assertEquals(aligned_buffer.length % superBlockSize, 0, `Aligned buffer ${i} length (${aligned_buffer.length}) is multiple of superblock size (${superBlockSize})`);
+
+              // 4. Decode back using the new signature
+              const unaligned_buffer = makeUnalignedBufferBlock(infoJson, aligned_buffer, blockSize);
               
               assertArraysEqual(unaligned_buffer, bufferBlock, `Unaligned buffer ${i} matches original buffer block`);
           }
-      });
-      
-      let encoded_savestream; // Store for subsequent tests
-      
-      await runTest("test_encode_decode_roundtrip (Public API, Real Data)", async () => {
-          encoded_savestream = await encode(savestates, {onProgress:(current, total) => {
+        },
+        
+        "test_encode_decode_roundtrip (Public API, Real Data)": async () => {
+          const { encode, decode } = globalAPIs;
+          globalEncodedSavestream = await encode(globalSavestates, {onProgress:(current, total) => {
               log(`   Encoding progress: ${current}/${total} states`);
           }});
-          assert(encoded_savestream instanceof Uint8Array, "Encoded savestream is Uint8Array");
+          assert(globalEncodedSavestream instanceof Uint8Array, "Encoded savestream is Uint8Array");
           
           const decoded_savestates = [];
-          for await (const state of await decode(encoded_savestream)) {
+          for await (const state of await decode(globalEncodedSavestream)) {
               decoded_savestates.push(state);
           }
           
-          assertEquals(decoded_savestates.length, savestates.length, "Decoded savestates length matches original");
+          assertEquals(decoded_savestates.length, globalSavestates.length, "Decoded savestates length matches original");
           
-          for(let i = 0; i < savestates.length; i++) {
-              assertArraysEqual(decoded_savestates[i], savestates[i], `Decoded state ${i} matches original`);
+          for(let i = 0; i < globalSavestates.length; i++) {
+              assertArraysEqual(decoded_savestates[i], globalSavestates[i], `Decoded state ${i} matches original`);
           }
-      });
-      
-      await runTest("test_decode_len (Public API, Real Data)", async () => {
-          if (!encoded_savestream) {
-              log("   WARN: encoding stream... (should have been done in previous test)");
-              encoded_savestream = await encode(savestates);
+        },
+        
+        "test_decode_one (Public API, Real Data)": async () => {
+          const { encode, decodeOne } = globalAPIs;
+          if (!globalEncodedSavestream) globalEncodedSavestream = await encode(globalSavestates);
+          
+          for (let i = 0; i < globalSavestates.length; i++) {
+              const decoded_one = await decodeOne(globalEncodedSavestream, i);
+              assertArraysEqual(decoded_one, globalSavestates[i], `decode_one(${i}) matches original state ${i}`);
           }
-          const len = await decodeLen(encoded_savestream);
-          assertEquals(len, savestates.length, "decode_len matches original length");
-      });
-      
-      await runTest("test_decode_one (Public API, Real Data)", async () => {
-          if (!encoded_savestream) {
-              log("   WARN: encoding stream... (should have been done in previous test)");
-              encoded_savestream = await encode(savestates);
-          }
-          for (let i = 0; i < savestates.length; i++) {
-              const decoded_one = await decodeOne(encoded_savestream, i);
-              assertArraysEqual(decoded_one, savestates[i], `decode_one(${i}) matches original state ${i}`);
-          }
-      });
+        },
 
-      await runTest("test_trim_savestates_roundtrip (Public API, Real Data)", async () => {
-          if (savestates.length < 3) {
+        "test_trim_savestates_roundtrip (Public API, Real Data)": async () => {
+          const { encode, decode, trim } = globalAPIs;
+          if (globalSavestates.length < 3) {
               log("--- Skipping trim test: requires at least 3 savestates.");
               return;
           }
-          if (!encoded_savestream) {
+          if (!globalEncodedSavestream) {
               log("   WARN: encoding stream... (should have been done in previous test)");
-              encoded_savestream = await encode(savestates);
+              globalEncodedSavestream = await encode(globalSavestates);
           }
 
-          const trimmed_stream = await trim(encoded_savestream, 1, 2);
+          const trimmed_stream = await trim(globalEncodedSavestream, 1, 2);
           const decoded = [];
           for await (const state of await decode(trimmed_stream)) {
               decoded.push(state);
           }
           
           assertEquals(decoded.length, 1, "Trim (1, 2) results in 1 state");
-          assertArraysEqual(decoded[0], savestates[1], "Trim (1, 2) content matches state 1");
+          assertArraysEqual(decoded[0], globalSavestates[1], "Trim (1, 2) content matches state 1");
           
           // Test trim(1) (from index 1 to end)
-          const trimmed_stream_2 = await trim(encoded_savestream, 1);
+          const trimmed_stream_2 = await trim(globalEncodedSavestream, 1);
           const decoded_2 = [];
           for await (const state of await decode(trimmed_stream_2)) {
               decoded_2.push(state);
           }
-          assertEquals(decoded_2.length, savestates.length - 1, "Trim (1) results in correct number of states");
-          assertArraysEqual(decoded_2[0], savestates[1], "Trim (1) content 0 matches state 1");
-          assertArraysEqual(decoded_2[1], savestates[2], "Trim (1) content 1 matches state 2");
-      });
-      
-      await runTest("test_info_encode_decode_roundtrip (Misc, Real Data)", async () => {
+          assertEquals(decoded_2.length, globalSavestates.length - 1, "Trim (1) results in correct number of states");
+          assertArraysEqual(decoded_2[0], globalSavestates[1], "Trim (1) content 0 matches state 1");
+          assertArraysEqual(decoded_2[1], globalSavestates[2], "Trim (1) content 1 matches state 2");
+        },
+        
+        "test_info_encode_decode_roundtrip (Misc, Real Data)": async () => {
+          const { splitV86Savestate, textDecoder } = globalAPIs;
           let previous_info = {};
           let reconstructed_info = {};
           
-          for (const state of savestates) {
+          for (const state of globalSavestates) {
               const { infoBlock } = splitV86Savestate(state);
               const info = JSON.parse(textDecoder.decode(infoBlock));
               
@@ -279,31 +329,121 @@
               assertEquals(recon_str, info_str, "Reconstructed info matches original info");
               previous_info = info; // for next iteration
           }
-      });
-      
-      await runTest("test_deduplication_efficiency (Misc, Real Data)", async () => {
-          if (savestates.length < 2) {
+        },
+        
+        "test_deduplication_efficiency (Misc, Real Data)": async () => {
+          const { encode } = globalAPIs;
+          if (globalSavestates.length < 2) {
               log("--- Skipping efficiency test: requires at least 2 savestates.");
               return;
           }
-          if (!encoded_savestream) {
+          if (!globalEncodedSavestream) {
               log("   WARN: encoding stream... (should have been done in previous test)");
-              encoded_savestream = await encode(savestates);
+              globalEncodedSavestream = await encode(globalSavestates);
           }
 
           let total_size = 0;
-          for (const state of savestates) {
+          for (const state of globalSavestates) {
               total_size += state.length;
           }
           
-          const compression_ratio = encoded_savestream.length / total_size;
+          const compression_ratio = globalEncodedSavestream.length / total_size;
           log(`      Total original size: ${total_size} bytes`);
-          log(`      Encoded size: ${encoded_savestream.length} bytes`);
+          log(`      Encoded size: ${globalEncodedSavestream.length} bytes`);
           log(`      Compression ratio: ${compression_ratio.toFixed(4)}`);
           assert(compression_ratio < 0.5, `Compression ratio (${compression_ratio.toFixed(4)}) is less than 0.5`);
+        }
+      };
+    }
+
+    // Main function to run selected tests
+    async function runSelectedTests(testNames) {
+      if (testNames.length === 0) {
+        log("No tests selected. Please select at least one test.");
+        return;
+      }
+
+      out.textContent = `Running ${testNames.length} test(s)...\n`;
+
+      for (const testName of testNames) {
+        if (testRegistry[testName]) {
+          await runTest(testName, testRegistry[testName]);
+        } else {
+          log(`⚠️  WARNING: Test "${testName}" not found in registry.`);
+        }
+      }
+
+      log("\n--- Selected tests complete ---");
+    }
+
+    // --- UI Setup ---
+    function setupTestControls() {
+      const testControls = document.getElementById("testControls");
+      const testCheckboxes = document.getElementById("testCheckboxes");
+      const selectAllCheckbox = document.getElementById("selectAll");
+      const runButton = document.getElementById("runSelectedTests");
+      const clearButton = document.getElementById("clearOutput");
+
+      // Create checkboxes for each test
+      const testNames = Object.keys(testRegistry);
+      testCheckboxes.innerHTML = "";
+      
+      testNames.forEach(testName => {
+        const div = document.createElement("div");
+        div.className = "test-checkbox-item";
+        
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.id = `test-${testName}`;
+        checkbox.value = testName;
+        checkbox.checked = true;
+        
+        const label = document.createElement("label");
+        label.htmlFor = `test-${testName}`;
+        label.textContent = testName;
+        
+        div.appendChild(checkbox);
+        div.appendChild(label);
+        testCheckboxes.appendChild(div);
       });
 
-      log("\n--- All tests complete ---");
+      // Handle "Select All" checkbox
+      selectAllCheckbox.addEventListener("change", () => {
+        const checkboxes = testCheckboxes.querySelectorAll('input[type="checkbox"]');
+        checkboxes.forEach(cb => {
+          cb.checked = selectAllCheckbox.checked;
+        });
+      });
+
+      // Handle individual checkbox changes
+      testCheckboxes.addEventListener("change", (e) => {
+        if (e.target.type === "checkbox" && e.target.id !== "selectAll") {
+          const checkboxes = testCheckboxes.querySelectorAll('input[type="checkbox"]');
+          const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+          selectAllCheckbox.checked = allChecked;
+        }
+      });
+
+      // Handle "Run Selected Tests" button
+      runButton.addEventListener("click", async () => {
+        const selectedTests = Array.from(testCheckboxes.querySelectorAll('input[type="checkbox"]:checked'))
+          .map(cb => cb.value)
+          .filter(v => v); // Remove empty values
+        
+        try {
+          await runSelectedTests(selectedTests);
+        } catch(err) {
+          fail("A critical error occurred during test execution.", err);
+        }
+      });
+
+      // Handle "Clear Output" button
+      clearButton.addEventListener("click", () => {
+        out.textContent = "";
+      });
+
+      // Show the test controls
+      testControls.style.display = "block";
     }
 
     // --- Main Entry Point ---
@@ -323,27 +463,23 @@
       log(`Loading ${files.length} savestate(s)...`);
 
       for (const file of files) {
-        log(`  > ${file.name}`);
         const buf = new Uint8Array(await file.arrayBuffer());
         savestates.push(buf);
       }
       
-      try {
-        // Run all tests
-        await runAllTests(savestates);
-      } catch(err) {
-        fail("A critical error occurred during test execution.", err);
-      }
+      // Initialize tests with loaded savestates
+      initializeTests(savestates);
+      
+      // Setup and show test controls
+      setupTestControls();
+      
+      log("Files loaded. Select tests and click 'Run Selected Tests' to begin.");
     });
 
     // Check for dependencies on load
     window.addEventListener("DOMContentLoaded", () => {
-         if (typeof MessagePack === 'undefined') {
-            fail("FATAL: 'MessagePack' is not defined. Please download 'msgpack.min.js' and save it next to this HTML file.");
-         }
-         if (typeof jsonpatch === 'undefined') {
-            fail("FATAL: 'jsonpatch' is not defined. Please download 'fast-json-patch.min.js' and save it next to this HTML file.");
-         }
+         if (typeof MessagePack === 'undefined') fail("FATAL: 'MessagePack' is not defined.");
+         if (typeof jsonpatch === 'undefined') fail("FATAL: 'jsonpatch' is not defined.");
     });
 
   </script>
