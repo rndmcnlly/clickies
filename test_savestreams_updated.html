@@ -2,95 +2,231 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>💾 v86 Savestream Test Suite </title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>💾 v86 Savestream Test Suite</title>
+  <link rel="stylesheet" href="v86/album-style.css">
   <style>
     body {
-      font-family: monospace;
-      background: #111;
-      color: #0f0;
+      font-family: sans-serif;
       padding: 20px;
+      background: #f0f0f0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
     }
-    h2 { color: #9f9; }
-    .section { margin-bottom: 20px; }
+
+    h1 {
+      color: #333;
+      margin-top: 0;
+    }
+
+    .card {
+      background: white;
+      border-radius: 15px;
+      padding: 20px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+      max-width: 1280px;
+      width: 80%;
+      box-sizing: border-box;
+    }
+
+    .card h3 {
+      margin-top: 0;
+      color: #007bff;
+    }
+
     #testOutput {
       background: #000;
-      color: #0f0;
+      color: rgb(255, 255, 255);
       border: 1px solid #444;
       padding: 10px;
       white-space: pre-wrap;
       height: 600px;
       overflow-y: auto;
       font-size: 0.9em;
+      font-family: monospace;
+      border-radius: 8px;
     }
-    button {
-        background: #333;
-        color: #0f0;
-        border: 1px solid #0f0;
-        padding: 5px 10px;
-        cursor: pointer;
-    }
-    button:hover { background: #444; }
+
     .test-controls {
-      background: #222;
-      border: 1px solid #444;
-      padding: 15px;
+      background: #fff;
+      padding: 15px 20px;
+      border-radius: 15px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
       margin-bottom: 20px;
+      width: 80%;
+      max-width: 1280px;
+      box-sizing: border-box;
     }
-    .test-controls h3 {
-      color: #9f9;
-      margin-top: 0;
-    }
+
     .test-checkboxes {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
       gap: 8px;
-      margin: 10px 0;
+      margin: 15px 0;
     }
+
     .test-checkbox-item {
       display: flex;
       align-items: center;
     }
+
     .test-checkbox-item input[type="checkbox"] {
       margin-right: 8px;
       cursor: pointer;
     }
+
     .test-checkbox-item label {
       cursor: pointer;
       user-select: none;
+      color: #555;
     }
+
     .button-group {
       margin-top: 15px;
       display: flex;
       gap: 10px;
     }
+
     .button-group button {
-      padding: 8px 15px;
+      padding: 10px 20px;
+      border-radius: 20px;
+      border: none;
+      background-color: #007bff;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      font-size: 14px;
+    }
+
+    .button-group button:hover:not(:disabled) {
+      background-color: #0056b3;
+    }
+
+    .button-group button:active:not(:disabled) {
+      transform: scale(0.98);
+    }
+
+    .button-group button.secondary {
+      background-color: #95a5a6;
+    }
+
+    .button-group button.secondary:hover:not(:disabled) {
+      background-color: #7f8c8d;
+    }
+
+    .file-input-wrapper {
+      margin-bottom: 15px;
+    }
+
+    .file-input-label {
+      display: inline-block;
+      padding: 10px 20px;
+      background: #007bff;
+      color: white;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: background 0.2s;
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    .file-input-label:hover {
+      background: #0056b3;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    .selected-file {
+      margin-top: 10px;
+      padding: 10px;
+      background: #e8f5e9;
+      border-radius: 8px;
+      color: #2e7d32;
+      font-size: 0.9em;
+    }
+
+    .test-section {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #e0e0e0;
+    }
+
+    .test-section:first-child {
+      border-top: none;
+      margin-top: 0;
+      padding-top: 0;
+    }
+
+    .test-section-title {
+      font-weight: bold;
+      color: #007bff;
+      margin-bottom: 8px;
     }
   </style>
 </head>
 
 <body>
-  <h2>💾 v86 Savestream Test Suite </h2>
+  <h1>💾 v86 Savestream Test Suite</h1>
 
-  <div class="section">
-    <p>Please select the folder containing your unzipped <code>.bin</code> savestates (e.g., the unzipped <code>msdos-states</code> folder).</p>
-    <input type="file" id="folderPicker" webkitdirectory multiple />
+  <div class="section" style="width: 80%; max-width: 1280px;">
+    <div style="background: white; padding: 15px 20px; border-radius: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+      <h3 style="margin-top: 0; color: #007bff;">Load Test Data</h3>
+      <p style="color: #555;">Please select the folder containing your unzipped <code>.bin</code> savestates (e.g., the unzipped <code>msdos-states</code> folder).</p>
+      <div class="file-input-wrapper">
+        <label for="folderPicker" class="file-input-label">
+          Choose Folder
+        </label>
+        <input type="file" id="folderPicker" webkitdirectory multiple />
+      </div>
+      <div id="selectedFiles" class="selected-file" style="display: none;"></div>
+    </div>
   </div>
 
   <div class="test-controls" id="testControls" style="display: none;">
     <h3>Select Tests to Run</h3>
-    <div class="test-checkbox-item" style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #444;">
-      <input type="checkbox" id="selectAll" checked />
-      <label for="selectAll"><strong>Run All Tests</strong></label>
+    
+    <div class="test-section">
+      <div class="test-section-title">Individual Function Tests</div>
+      <div class="test-checkbox-item" style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #e0e0e0;">
+        <input type="checkbox" id="selectAllIndividual" checked />
+        <label for="selectAllIndividual"><strong>Select All Individual Tests</strong></label>
+      </div>
+      <div class="test-checkboxes" id="individualTestCheckboxes"></div>
     </div>
-    <div class="test-checkboxes" id="testCheckboxes"></div>
+
+    <div class="test-section">
+      <div class="test-section-title">Function Pair Tests</div>
+      <div class="test-checkbox-item" style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #e0e0e0;">
+        <input type="checkbox" id="selectAllPairs" checked />
+        <label for="selectAllPairs"><strong>Select All Pair Tests</strong></label>
+      </div>
+      <div class="test-checkboxes" id="pairTestCheckboxes"></div>
+    </div>
+
+    <div class="test-section">
+      <div class="test-checkbox-item" style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #e0e0e0;">
+        <input type="checkbox" id="selectAll" checked />
+        <label for="selectAll"><strong>Select All Tests</strong></label>
+      </div>
+    </div>
+
     <div class="button-group">
       <button id="runSelectedTests">Run Selected Tests</button>
-      <button id="clearOutput">Clear Output</button>
+      <button id="clearOutput" class="secondary">Clear Output</button>
     </div>
   </div>
 
-  <pre id="testOutput">Awaiting savestate folder to run tests...</pre>
+  <div class="section" style="width: 80%; max-width: 1280px;">
+    <div style="background: white; padding: 15px 20px; border-radius: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+      <h3 style="margin-top: 0; color: #007bff;">Test Output</h3>
+      <pre id="testOutput">Awaiting savestate folder to run tests...</pre>
+    </div>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@msgpack/msgpack@3.1.1/dist.umd/msgpack.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fast-json-patch@3.1.1/dist/fast-json-patch.min.js"></script>
@@ -99,7 +235,10 @@
   <script>
     // --- Test Helpers ---
     const out = document.getElementById("testOutput");
-    const log = (msg) => out.textContent += msg + "\n";
+    const log = (msg) => {
+        out.textContent += msg + "\n";
+        out.scrollTop = out.scrollHeight; 
+    };
     const pass = (msg) => log(`✅ PASS: ${msg}`);
     const fail = (msg, e) => {
         log(`❌ FAIL: ${msg}`);
@@ -125,7 +264,6 @@
         }
         for (let i = 0; i < a.length; i++) {
             if (a[i] !== b[i]) {
-                // To avoid flooding the console, only show the first mismatch
                 throw new Error(`${message} (mismatch at index ${i}: ${a[i]} vs ${b[i]})`);
             }
         }
@@ -142,30 +280,29 @@
             error = e;
         }
         const t1 = performance.now();
-        const duration = ((t1 - t0) / 1000).toFixed(3); // in seconds
+        const duration = ((t1 - t0) / 1000).toFixed(3);
 
         if (error) {
             fail(name, error);
         }
         log(`--- Finished ${name} in ${duration}s ---`);
         
-        // Yield to the event loop to allow the UI to update.
         await new Promise(r => setTimeout(r, 0));
     };
     // --- End Test Helpers ---
 
     // Test registry and state
-    let testRegistry = {};
+    let individualTests = {};
+    let pairTests = {};
     let globalSavestates = null;
     let globalEncodedSavestream = null;
     let globalAPIs = null;
 
-    // Initialize test registry with individual test functions
+    // Initialize test registry
     function initializeTests(savestates) {
       globalSavestates = savestates;
       globalEncodedSavestream = null;
 
-      // Get APIs
       const { _internal } = window.v86Savestream;
       const {
         padTo,
@@ -188,9 +325,9 @@
         textEncoder, textDecoder
       };
 
-      // Define individual test functions
-      testRegistry = {
-        "test_pad_to (Private API)": async () => {
+      // ===== INDIVIDUAL FUNCTION TESTS =====
+      individualTests = {
+        "padTo (Private API)": async () => {
           const { padTo, textEncoder } = globalAPIs;
           assertArraysEqual(padTo(textEncoder.encode('1234'), 4), textEncoder.encode('1234'), "pads 4 bytes to 4");
           assertArraysEqual(padTo(textEncoder.encode('123'), 4), new Uint8Array([49, 50, 51, 0]), "pads 3 bytes to 4");
@@ -200,7 +337,7 @@
           assertArraysEqual(padded256.subarray(0, 5), textEncoder.encode('12345'), "padded 256 buffer has correct prefix");
         },
         
-        "test_hashBlock (string key) (Private API)": async () => {
+        "hashBlock (Private API)": async () => {
           const { hashBlock } = globalAPIs;
           const blockA = new Uint8Array([1, 2, 3, 4, 5]);
           const blockB = new Uint8Array([1, 2, 3, 4, 5]);
@@ -211,9 +348,25 @@
 
           assert(hashA === hashB, "identical blocks produce identical hashes");
           assert(hashA !== hashC, "different blocks produce different hashes");
+          assert(typeof hashA === 'number', "hash returns a number");
         },
 
-        "test_split_and_recombine (Private API, Real Data)": async () => {
+        "splitV86Savestate (Private API, Real Data)": async () => {
+          const { splitV86Savestate } = globalAPIs;
+          assert(globalSavestates.length > 0, "Must have at least 1 savestate");
+          for (let i = 0; i < globalSavestates.length; i++) {
+              const file_content = globalSavestates[i];
+              const { headerBlock, infoBlock, bufferBlock } = splitV86Savestate(file_content);
+              const padding = ((infoBlock.length + 3) & ~3) - infoBlock.length;
+              
+              assertEquals(headerBlock.length, 16, `Header block ${i} is 16 bytes`);
+              assert(infoBlock.length > 0, `Info block ${i} is not empty`);
+              assert(bufferBlock.length > 0, `Buffer block ${i} is not empty`);
+              assertEquals(headerBlock.length + infoBlock.length + bufferBlock.length + padding, file_content.length, `Split blocks ${i} sum to original length`);
+          }
+        },
+
+        "recombineV86Savestate (Private API, Real Data)": async () => {
           const { splitV86Savestate, recombineV86Savestate } = globalAPIs;
           assert(globalSavestates.length > 0, "Must have at least 1 savestate");
           for (let i = 0; i < globalSavestates.length; i++) {
@@ -223,8 +376,25 @@
               assertArraysEqual(recombined, file_content, `Recombined file ${i} matches original`);
           }
         },
-        
-        "test_buffer_block_alignments_optimized (Private API, Real Data)": async () => {
+
+        "makeAlignedBufferBlock (Private API, Real Data)": async () => {
+          const { splitV86Savestate, makeAlignedBufferBlock, textDecoder } = globalAPIs;
+          const blockSize = 256;
+          const superBlockSize = blockSize * 256;
+
+          for (let i = 0; i < globalSavestates.length; i++) {
+              const file_content = globalSavestates[i];
+              const { headerBlock, infoBlock, bufferBlock } = splitV86Savestate(file_content);
+              const infoJson = JSON.parse(textDecoder.decode(infoBlock));
+
+              const aligned_buffer = makeAlignedBufferBlock(infoJson, bufferBlock, blockSize, superBlockSize);
+              
+              assertEquals(aligned_buffer.length % superBlockSize, 0, `Aligned buffer ${i} length (${aligned_buffer.length}) is multiple of superblock size (${superBlockSize})`);
+              assert(aligned_buffer.length >= bufferBlock.length, `Aligned buffer ${i} is at least as large as original`);
+          }
+        },
+
+        "makeUnalignedBufferBlock (Private API, Real Data)": async () => {
           const { splitV86Savestate, makeAlignedBufferBlock, makeUnalignedBufferBlock, textDecoder } = globalAPIs;
           const blockSize = 256;
           const superBlockSize = blockSize * 256;
@@ -232,29 +402,155 @@
           for (let i = 0; i < globalSavestates.length; i++) {
               const file_content = globalSavestates[i];
               const { headerBlock, infoBlock, bufferBlock } = splitV86Savestate(file_content);
-              
-              // 1. Emulate the optimize flow: Parse JSON first
               const infoJson = JSON.parse(textDecoder.decode(infoBlock));
 
-              // 2. Test the new signature with alignToTotalSize (superBlock alignment)
               const aligned_buffer = makeAlignedBufferBlock(infoJson, bufferBlock, blockSize, superBlockSize);
-              
-              // 3. Ensure it respected the superblock alignment
-              assertEquals(aligned_buffer.length % superBlockSize, 0, `Aligned buffer ${i} length (${aligned_buffer.length}) is multiple of superblock size (${superBlockSize})`);
-
-              // 4. Decode back using the new signature
               const unaligned_buffer = makeUnalignedBufferBlock(infoJson, aligned_buffer, blockSize);
               
               assertArraysEqual(unaligned_buffer, bufferBlock, `Unaligned buffer ${i} matches original buffer block`);
           }
         },
-        
-        "test_encode_decode_roundtrip (Public API, Real Data)": async () => {
-          const { encode, decode } = globalAPIs;
-          globalEncodedSavestream = await encode(globalSavestates, {onProgress:(current, total) => {
+
+        "encode (Public API, Real Data)": async () => {
+          const { encode } = globalAPIs;
+          assert(globalSavestates.length > 0, "Must have at least 1 savestate");
+          
+          globalEncodedSavestream = await encode(globalSavestates, {
+            onProgress: (current, total) => {
               log(`   Encoding progress: ${current}/${total} states`);
-          }});
+            }
+          });
+          
           assert(globalEncodedSavestream instanceof Uint8Array, "Encoded savestream is Uint8Array");
+          assert(globalEncodedSavestream.length > 0, "Encoded savestream is not empty");
+        },
+
+        "decodeLen (Public API, Real Data)": async () => {
+          const { encode, decodeLen } = globalAPIs;
+          if (!globalEncodedSavestream) {
+            globalEncodedSavestream = await encode(globalSavestates);
+          }
+          
+          const length = await decodeLen(globalEncodedSavestream);
+          assertEquals(length, globalSavestates.length, "decodeLen returns correct count");
+        },
+
+        "decodeOne (Public API, Real Data)": async () => {
+          const { encode, decodeOne } = globalAPIs;
+          if (!globalEncodedSavestream) {
+            globalEncodedSavestream = await encode(globalSavestates);
+          }
+          
+          for (let i = 0; i < globalSavestates.length; i++) {
+              const decoded_one = await decodeOne(globalEncodedSavestream, i);
+              assertArraysEqual(decoded_one, globalSavestates[i], `decode_one(${i}) matches original state ${i}`);
+          }
+        },
+
+        "trim (Public API, Real Data)": async () => {
+          const { encode, trim } = globalAPIs;
+          if (globalSavestates.length < 3) {
+              log("--- Skipping trim test: requires at least 3 savestates.");
+              return;
+          }
+          if (!globalEncodedSavestream) {
+              globalEncodedSavestream = await encode(globalSavestates);
+          }
+
+          const trimmed_stream = await trim(globalEncodedSavestream, 1, 2);
+          assert(trimmed_stream instanceof Uint8Array, "Trimmed stream is Uint8Array");
+          assert(trimmed_stream.length > 0, "Trimmed stream is not empty");
+          
+          const trimmed_stream_2 = await trim(globalEncodedSavestream, 1);
+          assert(trimmed_stream_2 instanceof Uint8Array, "Trimmed stream (1) is Uint8Array");
+        },
+
+        "encode (Compression Efficiency)": async () => {
+          const { encode } = globalAPIs;
+          assert(globalSavestates.length > 0, "Must have at least 1 savestate");
+          
+          // Ensure we have an encoded stream
+          if (!globalEncodedSavestream) {
+            globalEncodedSavestream = await encode(globalSavestates);
+          }
+
+          // Calculate total original size
+          let totalOriginalSize = 0;
+          for (const state of globalSavestates) {
+            totalOriginalSize += state.length;
+          }
+
+          const compressedSize = globalEncodedSavestream.length;
+          const ratio = compressedSize / totalOriginalSize;
+
+          log(`   Original Size:   ${(totalOriginalSize / 1024 / 1024).toFixed(2)} MB`);
+          log(`   Compressed Size: ${(compressedSize / 1024 / 1024).toFixed(2)} MB`);
+          log(`   Compression Ratio: ${ratio.toFixed(4)}`);
+
+          // Expecting at least 50% reduction (ratio < 0.5)
+          assert(ratio < 0.5, `Compression ratio ${ratio.toFixed(4)} is higher than expected (< 0.5)`);
+        },
+      };
+
+      // ===== FUNCTION PAIR TESTS =====
+      pairTests = {
+        "splitV86Savestate + recombineV86Savestate (Roundtrip)": async () => {
+          const { splitV86Savestate, recombineV86Savestate } = globalAPIs;
+          assert(globalSavestates.length > 0, "Must have at least 1 savestate");
+          
+          for (let i = 0; i < globalSavestates.length; i++) {
+              const file_content = globalSavestates[i];
+              const { headerBlock, infoBlock, bufferBlock } = splitV86Savestate(file_content);
+              const recombined = recombineV86Savestate(headerBlock, infoBlock, bufferBlock);
+              assertArraysEqual(recombined, file_content, `Roundtrip ${i}: split + recombine matches original`);
+          }
+        },
+        
+        "makeAlignedBufferBlock + makeUnalignedBufferBlock (Roundtrip)": async () => {
+          const { splitV86Savestate, makeAlignedBufferBlock, makeUnalignedBufferBlock, textDecoder } = globalAPIs;
+          const blockSize = 256;
+          const superBlockSize = blockSize * 256;
+
+          for (let i = 0; i < globalSavestates.length; i++) {
+              const file_content = globalSavestates[i];
+              const { headerBlock, infoBlock, bufferBlock } = splitV86Savestate(file_content);
+              const infoJson = JSON.parse(textDecoder.decode(infoBlock));
+
+              const aligned_buffer = makeAlignedBufferBlock(infoJson, bufferBlock, blockSize, superBlockSize);
+              const unaligned_buffer = makeUnalignedBufferBlock(infoJson, aligned_buffer, blockSize);
+              
+              assertArraysEqual(unaligned_buffer, bufferBlock, `Roundtrip ${i}: align + unalign matches original`);
+          }
+        },
+
+        "encode + decode (Empty Input)": async () => {
+          const { encode, decode, decodeLen } = globalAPIs;
+          
+          // 1. Encode empty array
+          const emptyStream = await encode([]);
+          assert(emptyStream instanceof Uint8Array, "Empty input produces Uint8Array");
+          
+          // 2. Check length
+          const len = await decodeLen(emptyStream);
+          assertEquals(len, 0, "decodeLen returns 0 for empty stream");
+          
+          // 3. Decode and verify empty
+          const decoded = [];
+          for await (const state of await decode(emptyStream)) {
+              decoded.push(state);
+          }
+          assertEquals(decoded.length, 0, "Decodes to empty array");
+        },
+
+        "encode + decode (Roundtrip)": async () => {
+          const { encode, decode } = globalAPIs;
+          if (!globalEncodedSavestream) {
+            globalEncodedSavestream = await encode(globalSavestates, {
+              onProgress: (current, total) => {
+                log(`   Encoding progress: ${current}/${total} states`);
+              }
+            });
+          }
           
           const decoded_savestates = [];
           for await (const state of await decode(globalEncodedSavestream)) {
@@ -264,28 +560,29 @@
           assertEquals(decoded_savestates.length, globalSavestates.length, "Decoded savestates length matches original");
           
           for(let i = 0; i < globalSavestates.length; i++) {
-              assertArraysEqual(decoded_savestates[i], globalSavestates[i], `Decoded state ${i} matches original`);
-          }
-        },
-        
-        "test_decode_one (Public API, Real Data)": async () => {
-          const { encode, decodeOne } = globalAPIs;
-          if (!globalEncodedSavestream) globalEncodedSavestream = await encode(globalSavestates);
-          
-          for (let i = 0; i < globalSavestates.length; i++) {
-              const decoded_one = await decodeOne(globalEncodedSavestream, i);
-              assertArraysEqual(decoded_one, globalSavestates[i], `decode_one(${i}) matches original state ${i}`);
+              assertArraysEqual(decoded_savestates[i], globalSavestates[i], `Roundtrip ${i}: encode + decode matches original`);
           }
         },
 
-        "test_trim_savestates_roundtrip (Public API, Real Data)": async () => {
+        "encode + decodeOne (Roundtrip)": async () => {
+          const { encode, decodeOne } = globalAPIs;
+          if (!globalEncodedSavestream) {
+            globalEncodedSavestream = await encode(globalSavestates);
+          }
+          
+          for (let i = 0; i < globalSavestates.length; i++) {
+              const decoded_one = await decodeOne(globalEncodedSavestream, i);
+              assertArraysEqual(decoded_one, globalSavestates[i], `Roundtrip ${i}: encode + decodeOne matches original`);
+          }
+        },
+
+        "encode + trim + decode (Roundtrip)": async () => {
           const { encode, decode, trim } = globalAPIs;
           if (globalSavestates.length < 3) {
-              log("--- Skipping trim test: requires at least 3 savestates.");
+              log("--- Skipping trim roundtrip test: requires at least 3 savestates.");
               return;
           }
           if (!globalEncodedSavestream) {
-              log("   WARN: encoding stream... (should have been done in previous test)");
               globalEncodedSavestream = await encode(globalSavestates);
           }
 
@@ -296,62 +593,26 @@
           }
           
           assertEquals(decoded.length, 1, "Trim (1, 2) results in 1 state");
-          assertArraysEqual(decoded[0], globalSavestates[1], "Trim (1, 2) content matches state 1");
+          assertArraysEqual(decoded[0], globalSavestates[1], "Roundtrip: encode + trim(1,2) + decode matches state 1");
           
-          // Test trim(1) (from index 1 to end)
           const trimmed_stream_2 = await trim(globalEncodedSavestream, 1);
           const decoded_2 = [];
           for await (const state of await decode(trimmed_stream_2)) {
               decoded_2.push(state);
           }
           assertEquals(decoded_2.length, globalSavestates.length - 1, "Trim (1) results in correct number of states");
-          assertArraysEqual(decoded_2[0], globalSavestates[1], "Trim (1) content 0 matches state 1");
-          assertArraysEqual(decoded_2[1], globalSavestates[2], "Trim (1) content 1 matches state 2");
+          assertArraysEqual(decoded_2[0], globalSavestates[1], "Roundtrip: encode + trim(1) + decode matches state 1");
+          assertArraysEqual(decoded_2[1], globalSavestates[2], "Roundtrip: encode + trim(1) + decode matches state 2");
         },
-        
-        "test_info_encode_decode_roundtrip (Misc, Real Data)": async () => {
-          const { splitV86Savestate, textDecoder } = globalAPIs;
-          let previous_info = {};
-          let reconstructed_info = {};
-          
-          for (const state of globalSavestates) {
-              const { infoBlock } = splitV86Savestate(state);
-              const info = JSON.parse(textDecoder.decode(infoBlock));
-              
-              // Use fast-json-patch to get diff and apply patch
-              const diff = jsonpatch.compare(previous_info, info);
-              reconstructed_info = jsonpatch.applyPatch(reconstructed_info, diff).newDocument;
-              
-              // This assert is tricky due to key order, so we stringify consistently
-              const recon_str = JSON.stringify(reconstructed_info);
-              const info_str = JSON.stringify(info);
-              
-              assertEquals(recon_str, info_str, "Reconstructed info matches original info");
-              previous_info = info; // for next iteration
-          }
-        },
-        
-        "test_deduplication_efficiency (Misc, Real Data)": async () => {
-          const { encode } = globalAPIs;
-          if (globalSavestates.length < 2) {
-              log("--- Skipping efficiency test: requires at least 2 savestates.");
-              return;
-          }
-          if (!globalEncodedSavestream) {
-              log("   WARN: encoding stream... (should have been done in previous test)");
-              globalEncodedSavestream = await encode(globalSavestates);
-          }
 
-          let total_size = 0;
-          for (const state of globalSavestates) {
-              total_size += state.length;
+        "encode + decodeLen (Integration)": async () => {
+          const { encode, decodeLen } = globalAPIs;
+          if (!globalEncodedSavestream) {
+            globalEncodedSavestream = await encode(globalSavestates);
           }
           
-          const compression_ratio = globalEncodedSavestream.length / total_size;
-          log(`      Total original size: ${total_size} bytes`);
-          log(`      Encoded size: ${globalEncodedSavestream.length} bytes`);
-          log(`      Compression ratio: ${compression_ratio.toFixed(4)}`);
-          assert(compression_ratio < 0.5, `Compression ratio (${compression_ratio.toFixed(4)}) is less than 0.5`);
+          const length = await decodeLen(globalEncodedSavestream);
+          assertEquals(length, globalSavestates.length, "encode + decodeLen: length matches original count");
         }
       };
     }
@@ -366,8 +627,10 @@
       out.textContent = `Running ${testNames.length} test(s)...\n`;
 
       for (const testName of testNames) {
-        if (testRegistry[testName]) {
-          await runTest(testName, testRegistry[testName]);
+        if (individualTests[testName]) {
+          await runTest(testName, individualTests[testName]);
+        } else if (pairTests[testName]) {
+          await runTest(testName, pairTests[testName]);
         } else {
           log(`⚠️  WARNING: Test "${testName}" not found in registry.`);
         }
@@ -379,16 +642,19 @@
     // --- UI Setup ---
     function setupTestControls() {
       const testControls = document.getElementById("testControls");
-      const testCheckboxes = document.getElementById("testCheckboxes");
+      const individualCheckboxes = document.getElementById("individualTestCheckboxes");
+      const pairCheckboxes = document.getElementById("pairTestCheckboxes");
       const selectAllCheckbox = document.getElementById("selectAll");
+      const selectAllIndividualCheckbox = document.getElementById("selectAllIndividual");
+      const selectAllPairsCheckbox = document.getElementById("selectAllPairs");
       const runButton = document.getElementById("runSelectedTests");
       const clearButton = document.getElementById("clearOutput");
 
-      // Create checkboxes for each test
-      const testNames = Object.keys(testRegistry);
-      testCheckboxes.innerHTML = "";
+      // Create checkboxes for individual tests
+      const individualTestNames = Object.keys(individualTests);
+      individualCheckboxes.innerHTML = "";
       
-      testNames.forEach(testName => {
+      individualTestNames.forEach(testName => {
         const div = document.createElement("div");
         div.className = "test-checkbox-item";
         
@@ -397,6 +663,7 @@
         checkbox.id = `test-${testName}`;
         checkbox.value = testName;
         checkbox.checked = true;
+        checkbox.dataset.category = "individual";
         
         const label = document.createElement("label");
         label.htmlFor = `test-${testName}`;
@@ -404,31 +671,81 @@
         
         div.appendChild(checkbox);
         div.appendChild(label);
-        testCheckboxes.appendChild(div);
+        individualCheckboxes.appendChild(div);
+      });
+
+      // Create checkboxes for pair tests
+      const pairTestNames = Object.keys(pairTests);
+      pairCheckboxes.innerHTML = "";
+      
+      pairTestNames.forEach(testName => {
+        const div = document.createElement("div");
+        div.className = "test-checkbox-item";
+        
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.id = `test-${testName}`;
+        checkbox.value = testName;
+        checkbox.checked = true;
+        checkbox.dataset.category = "pair";
+        
+        const label = document.createElement("label");
+        label.htmlFor = `test-${testName}`;
+        label.textContent = testName;
+        
+        div.appendChild(checkbox);
+        div.appendChild(label);
+        pairCheckboxes.appendChild(div);
+      });
+
+      // Handle "Select All Individual" checkbox
+      selectAllIndividualCheckbox.addEventListener("change", () => {
+        const checkboxes = individualCheckboxes.querySelectorAll('input[type="checkbox"]');
+        checkboxes.forEach(cb => {
+          cb.checked = selectAllIndividualCheckbox.checked;
+        });
+        updateSelectAllState();
+      });
+
+      // Handle "Select All Pairs" checkbox
+      selectAllPairsCheckbox.addEventListener("change", () => {
+        const checkboxes = pairCheckboxes.querySelectorAll('input[type="checkbox"]');
+        checkboxes.forEach(cb => {
+          cb.checked = selectAllPairsCheckbox.checked;
+        });
+        updateSelectAllState();
       });
 
       // Handle "Select All" checkbox
       selectAllCheckbox.addEventListener("change", () => {
-        const checkboxes = testCheckboxes.querySelectorAll('input[type="checkbox"]');
-        checkboxes.forEach(cb => {
+        const allCheckboxes = document.querySelectorAll('#individualTestCheckboxes input[type="checkbox"], #pairTestCheckboxes input[type="checkbox"]');
+        allCheckboxes.forEach(cb => {
           cb.checked = selectAllCheckbox.checked;
         });
+        selectAllIndividualCheckbox.checked = selectAllCheckbox.checked;
+        selectAllPairsCheckbox.checked = selectAllCheckbox.checked;
       });
 
       // Handle individual checkbox changes
-      testCheckboxes.addEventListener("change", (e) => {
-        if (e.target.type === "checkbox" && e.target.id !== "selectAll") {
-          const checkboxes = testCheckboxes.querySelectorAll('input[type="checkbox"]');
-          const allChecked = Array.from(checkboxes).every(cb => cb.checked);
-          selectAllCheckbox.checked = allChecked;
-        }
-      });
+      function updateSelectAllState() {
+        const individualCheckboxes = document.querySelectorAll('#individualTestCheckboxes input[type="checkbox"]');
+        const pairCheckboxes = document.querySelectorAll('#pairTestCheckboxes input[type="checkbox"]');
+        const allIndividualChecked = Array.from(individualCheckboxes).every(cb => cb.checked);
+        const allPairsChecked = Array.from(pairCheckboxes).every(cb => cb.checked);
+        
+        selectAllIndividualCheckbox.checked = allIndividualChecked;
+        selectAllPairsCheckbox.checked = allPairsChecked;
+        selectAllCheckbox.checked = allIndividualChecked && allPairsChecked;
+      }
+
+      individualCheckboxes.addEventListener("change", updateSelectAllState);
+      pairCheckboxes.addEventListener("change", updateSelectAllState);
 
       // Handle "Run Selected Tests" button
       runButton.addEventListener("click", async () => {
-        const selectedTests = Array.from(testCheckboxes.querySelectorAll('input[type="checkbox"]:checked'))
+        const selectedTests = Array.from(document.querySelectorAll('#individualTestCheckboxes input[type="checkbox"]:checked, #pairTestCheckboxes input[type="checkbox"]:checked'))
           .map(cb => cb.value)
-          .filter(v => v); // Remove empty values
+          .filter(v => v);
         
         try {
           await runSelectedTests(selectedTests);
@@ -472,6 +789,11 @@
       
       // Setup and show test controls
       setupTestControls();
+      
+      // Update file selection display
+      const selectedFilesDiv = document.getElementById("selectedFiles");
+      selectedFilesDiv.textContent = `Selected: ${files.length} .bin file(s)`;
+      selectedFilesDiv.style.display = "block";
       
       log("Files loaded. Select tests and click 'Run Selected Tests' to begin.");
     });

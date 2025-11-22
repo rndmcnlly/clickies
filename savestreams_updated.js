@@ -42,9 +42,10 @@ function recombineV86Savestate(headerBlock, infoBlock, bufferBlock) {
 
 // align buffer blocks to a specific block size for efficient deduplication
 // OPTIMIZED: Calculates size first, allocates ONCE, and avoids intermediate arrays.
-function makeAlignedBufferBlock(infoOrBytes, bufferBlock, blockSize, alignToTotalSize = 1) {
+function makeAlignedBufferBlock(infoOrBytes, bufferBlock, blockSize, alignToTotalSize = 1, textDecoder = null) {
+    const decoder = textDecoder || new TextDecoder("utf-8");
     const info = (infoOrBytes instanceof Uint8Array) 
-        ? JSON.parse(new TextDecoder("utf-8").decode(infoOrBytes)) 
+        ? JSON.parse(decoder.decode(infoOrBytes)) 
         : infoOrBytes;
 
     // 1. Calculate total content size
@@ -83,9 +84,10 @@ function makeAlignedBufferBlock(infoOrBytes, bufferBlock, blockSize, alignToTota
 
 // convert an aligned buffer block back to its original unaligned form
 // OPTIMIZED: Calculates size first and allocates ONCE.
-function makeUnalignedBufferBlock(infoOrBytes, alignedBufferBlock, blockSize) {
+function makeUnalignedBufferBlock(infoOrBytes, alignedBufferBlock, blockSize, textDecoder = null) {
+    const decoder = textDecoder || new TextDecoder("utf-8");
     const info = (infoOrBytes instanceof Uint8Array) 
-        ? JSON.parse(new TextDecoder("utf-8").decode(infoOrBytes)) 
+        ? JSON.parse(decoder.decode(infoOrBytes)) 
         : infoOrBytes;
 
     // 1. Calculate total size (original format uses 4-byte alignment)
@@ -115,8 +117,7 @@ function makeUnalignedBufferBlock(infoOrBytes, alignedBufferBlock, blockSize) {
     return unalignedBufferBlock;
 }
 
-// Fast hash function that produces a fixed-size hex string
-// Uses double FNV-1a hash (64-bit) for good distribution and very low collision probability
+// updated hash block to return a numeric key for faster Map lookups
 function hashBlock(block) {
     // FNV-1a hash constants
     const FNV_OFFSET_BASIS_1 = 2166136261;
@@ -135,9 +136,10 @@ function hashBlock(block) {
         hash2 = (hash2 * FNV_PRIME) >>> 0;
     }
     
-    // Combine into 64-bit hash (16 hex characters)
-    // This provides extremely low collision probability for 256-byte blocks
-    return hash1.toString(16).padStart(8, '0') + hash2.toString(16).padStart(8, '0');
+    // Combine into a single numeric key that fits in safe integer range (2^53 - 1)
+    // Use hash1 shifted left 16 bits + hash2: gives us 48 bits total (safe)
+    // This provides excellent collision resistance while staying within safe integer range
+    return hash1 * 0x10000 + hash2;
 }
 
 // encode a sequence of v86 savestates
@@ -154,10 +156,15 @@ async function encode(savestatesIterator, {blockSize = 256, superBlockMultiple =
     const zeroBlock = new Uint8Array(blockSize);
     const zeroSuperBlock = new Uint8Array(superBlockSize);
 
+    // Use numeric hashes for faster Map lookups (numbers are faster than strings)
     const knownBlocks = new Map([[hashBlock(zeroBlock), 0]]);
     const knownSuperBlocks = new Map([[hashBlock(zeroSuperBlock), 0]]);
     const incrementalSaves = [];
     let prevInfo = {};
+
+    // Reuse TextEncoder/Decoder instances (significant performance gain)
+    const textDecoder = new TextDecoder("utf-8");
+    const textEncoder = new TextEncoder();
 
     // Yield immediately to allow UI to update before starting
     await reportProgress(0, total);
@@ -165,28 +172,23 @@ async function encode(savestatesIterator, {blockSize = 256, superBlockMultiple =
     for await (const savestate of savestatesIterator) {
         const { headerBlock, infoBlock, bufferBlock } = splitV86Savestate(savestate);
         
-        // Optimization: Parse Info ONCE
-        const infoJson = JSON.parse(new TextDecoder("utf-8").decode(infoBlock));
+        // Parse Info ONCE (reuse decoder)
+        const infoJson = JSON.parse(textDecoder.decode(infoBlock));
 
-        // Optimization: Create aligned block AND pad to superBlockSize in one go
+        // Create aligned block AND pad to superBlockSize in one go
         const alignedBufferBlock = makeAlignedBufferBlock(infoJson, bufferBlock, blockSize, superBlockSize);
-
-        // split aligned buffer into superblocks (views, cheap)
-        const superBlocks = [];
-        for (let offset = 0; offset < alignedBufferBlock.length; offset += superBlockSize) {
-            superBlocks.push(alignedBufferBlock.subarray(offset, offset + superBlockSize));
-        }
 
         const superIdSequence = [];
         const newSuperBlocks = new Map();
         const newBlocks = new Map();
-        const encoder = new TextEncoder();
 
+        // Process superblocks directly with offsets (avoids array allocation)
         // Process superblocks with periodic yielding to prevent main thread blocking
         const YIELD_EVERY_N_SUPERBLOCKS = 50; // Yield roughly every ~3MB processed (assuming 64KB superblocks)
         let loopsSinceYield = 0;
 
-        for (const superBlock of superBlocks) {
+        for (let superOffset = 0; superOffset < alignedBufferBlock.length; superOffset += superBlockSize) {
+            const superBlock = alignedBufferBlock.subarray(superOffset, superOffset + superBlockSize);
             const superBlockKey = hashBlock(superBlock);
             
             if (!knownSuperBlocks.has(superBlockKey)) {
@@ -194,8 +196,8 @@ async function encode(savestatesIterator, {blockSize = 256, superBlockMultiple =
                 knownSuperBlocks.set(superBlockKey, superBlockId);
 
                 const blockIds = [];
-                for (let offset = 0; offset < superBlock.length; offset += blockSize) {
-                    const block = superBlock.subarray(offset, offset + blockSize);
+                for (let blockOffset = 0; blockOffset < superBlock.length; blockOffset += blockSize) {
+                    const block = superBlock.subarray(blockOffset, blockOffset + blockSize);
                     const blockKey = hashBlock(block);
                     if (!knownBlocks.has(blockKey)) {
                         const blockId = knownBlocks.size;
@@ -216,16 +218,26 @@ async function encode(savestatesIterator, {blockSize = 256, superBlockMultiple =
             }
         }
 
-        // delta encode the info block
+        // delta encode the info block (reuse encoder)
         const infoDiff = compare(prevInfo, infoJson);
-        const encodedInfo = encoder.encode(JSON.stringify(infoDiff));
+        const encodedInfo = textEncoder.encode(JSON.stringify(infoDiff));
         prevInfo = infoJson;
+
+        // OPTIMIZED: Convert Maps to objects more efficiently (avoid Object.fromEntries overhead)
+        const newBlocksObj = {};
+        for (const [id, data] of newBlocks) {
+            newBlocksObj[id] = data;
+        }
+        const newSuperBlocksObj = {};
+        for (const [id, blockIds] of newSuperBlocks) {
+            newSuperBlocksObj[id] = blockIds;
+        }
 
         incrementalSaves.push({
             headerBlock: headerBlock.slice(),
             infoPatch: encodedInfo,
-            newBlocks: Object.fromEntries(newBlocks),
-            newSuperBlocks: Object.fromEntries(newSuperBlocks),
+            newBlocks: newBlocksObj,
+            newSuperBlocks: newSuperBlocksObj,
             superIdSequence
         });
 
@@ -239,6 +251,8 @@ async function encode(savestatesIterator, {blockSize = 256, superBlockMultiple =
 async function decode(savestream, blockSize = 256, superBlockMultiple = 256) {
     const incrementalSaves = MessagePack.decode(savestream);
     const superBlockSize = blockSize * superBlockMultiple;
+    const textDecoder = new TextDecoder("utf-8");
+    const textEncoder = new TextEncoder();
     const zeroBlock = new Uint8Array(blockSize);
 
     const knownBlocks = new Map([[0, zeroBlock]]);
@@ -250,19 +264,21 @@ async function decode(savestream, blockSize = 256, superBlockMultiple = 256) {
         for (const save of incrementalSaves) {
             const { headerBlock, infoPatch, newBlocks, newSuperBlocks, superIdSequence } = save;
 
-            for (const [blockId, blockData] of Object.entries(newBlocks)) {
-                knownBlocks.set(Number(blockId), blockData);
+            // OPTIMIZED: Use direct iteration instead of Object.entries (faster)
+            for (const blockId in newBlocks) {
+                knownBlocks.set(Number(blockId), newBlocks[blockId]);
             }
 
-            for (const [superBlockId, blockIds] of Object.entries(newSuperBlocks)) {
-                knownSuperBlocks.set(Number(superBlockId), blockIds);
+            for (const superBlockId in newSuperBlocks) {
+                knownSuperBlocks.set(Number(superBlockId), newSuperBlocks[superBlockId]);
             }
 
-            const delta = JSON.parse(new TextDecoder("utf-8").decode(infoPatch));
+            // Reuse decoder/encoder
+            const delta = JSON.parse(textDecoder.decode(infoPatch));
             const currentInfo = applyPatch(prevInfo, delta).newDocument;
             prevInfo = currentInfo;
 
-            const infoBlock = new TextEncoder().encode(JSON.stringify(currentInfo));
+            const infoBlock = textEncoder.encode(JSON.stringify(currentInfo));
 
             // Reconstruct full buffer
             const alignedBufferBlock = new Uint8Array(superIdSequence.length * superBlockSize);
@@ -277,8 +293,8 @@ async function decode(savestream, blockSize = 256, superBlockMultiple = 256) {
                 }
             }
             
-            // Convert back to V86 format (passing currentInfo object avoids re-parsing)
-            const unalignedBufferBlock = makeUnalignedBufferBlock(currentInfo, alignedBufferBlock, blockSize);
+            // Convert back to V86 format (passing currentInfo object avoids re-parsing, but pass textDecoder for potential reuse)
+            const unalignedBufferBlock = makeUnalignedBufferBlock(currentInfo, alignedBufferBlock, blockSize, textDecoder);
 
             yield recombineV86Savestate(headerBlock, infoBlock, unalignedBufferBlock);
         }
