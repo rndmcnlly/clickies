@@ -268,8 +268,9 @@
                     console.log("Recording stopped and clickie finalized.");
 
                 } else {
-                    statusLabel.textContent = "Recording... (Click screen to lock mouse)";
+                    statusLabel.textContent = "Recording... (Mouse locked)";
                     statusLabel.style.color = "#dc3545";
+                    emulator.lock_mouse();
                     await capturer.startRecording();
                     recordButton.value = "⏹ Stop Recording";
                     recordButton.classList.add("recording");
@@ -303,8 +304,8 @@
             <li><strong>Step 3:</strong> Click <em>"Create/Open Album Folder"</em>. This <strong>locks</strong> your
                 machine selection for the session.</li>
             <li><strong>Step 4:</strong> Click <em>"Start Recording Clip"</em> to begin capturing video, inputs, and
-                states.</li>
-            <li><strong>Step 5:</strong> Interact! Click screen to lock mouse (<strong>ESC</strong> to unlock). Click
+                states. The mouse will be automatically locked to the emulator.</li>
+            <li><strong>Step 5:</strong> Interact! (<strong>ESC</strong> to unlock mouse if needed). Click
                 <em>"Stop"</em> when done.</li>
             <li><strong>⚠️ Note:</strong> Finalizing a clip involves heavy compression and may take over a minute.</li>
         </ul>

@@ -218,6 +218,7 @@
 
                 videoPlayer.classList.add("hidden");
                 screenContainer.classList.add("active");
+                playerWrapper.classList.add("riffing");
 
                 isEmulatorActive = true;
                 interactionBtn.textContent = "↩️ Return to Video";
@@ -225,7 +226,8 @@
                 interactionBtn.disabled = false;
 
                 emulator.run();
-                displayElement.textContent = "Interactive Mode Active. Click screen to lock mouse.";
+                emulator.lock_mouse();
+                displayElement.textContent = "Interactive Mode Active. (Mouse locked)";
 
             } catch (err) {
                 console.error("Restore failed:", err);
@@ -238,6 +240,7 @@
             if (emulator) emulator.stop();
 
             screenContainer.classList.remove("active");
+            playerWrapper.classList.remove("riffing");
             videoPlayer.classList.remove("hidden");
 
             interactionBtn.textContent = "👋 Take Control";
@@ -269,12 +272,12 @@
 <div id="instructions">
     <h3>How to Riff</h3>
     <ul>
-        <li><strong>Step 1:</strong> Click <em>"Create/Open Album Folder"</em> to load a recorded album.</li>
-        <li><strong>Step 2:</strong> Use the dropdown to select a specific recording clip.</li>
+        <li><strong>Step 1:</strong> Click <em>"Load Album Folder"</em> to load a recorded album.</li>
+        <li><strong>Step 2:</strong> Use the dropdown to select a specific clickie within the album.</li>
         <li><strong>Step 3:</strong> Watch the video! You'll see inputs and state events in the subtitles.</li>
         <li><strong>Step 4:</strong> See something interesting? Click <strong>"👋 Take Control"</strong>.</li>
-        <li><strong>Step 5:</strong> The video will pause, and the emulator will take over at that exact moment.
-            <em>Click to lock mouse!</em></li>
+        <li><strong>Step 5:</strong> The video will pause, and the emulator will take over after a brief delay.
+            The mouse will be automatically locked to the emulator. (ESC to unlock)</li>
         <li><strong>Step 6:</strong> When done experimenting, click <strong>"↩️ Return to Video"</strong> to resume
             playback.</li>
     </ul>

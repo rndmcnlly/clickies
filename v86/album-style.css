@@ -95,7 +95,30 @@ video::cue {
 #screen_container.active {
   display: block;
   z-index: 20;
+  position: relative;
 }
+
+#player-wrapper.riffing {
+  box-shadow: 0 0 0 4px #dc3545, 0 10px 25px rgba(0,0,0,0.5);
+  position: relative;
+}
+
+#player-wrapper.riffing::before {
+  content: "riffing";
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(220, 53, 69, 0.9);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: bold;
+  font-family: sans-serif;
+  z-index: 1000;
+  pointer-events: none;
+}
+
 
 #screen_container.capturer-visible {
     display: block !important;
