@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Album Capturer</title>
+    <title>Clickie Album Capturer</title>
 
     <link rel="stylesheet" href="album-style.css">
 
@@ -263,7 +263,7 @@
                     await capturer.stopRecording(onProgress);
 
                     recordButton.disabled = false;
-                    recordButton.value = "🔴 Start Recording Another Clip";
+                    recordButton.value = "🔴 Start Recording Another Clickie";
                     statusLabel.textContent = "Clickie saved! Ready for next.";
                     console.log("Recording stopped and clickie finalized.");
 
@@ -292,7 +292,7 @@
             at MDN</a>.
     </div>
 
-    <h1>Album Capturer</h1>
+    <h1>Clickie Album Capturer</h1>
 
     <div id="instructions">
         <h3>Instructions & Tips</h3>
@@ -303,11 +303,11 @@
                     style="color: #28a745;">Ready</span>).</li>
             <li><strong>Step 3:</strong> Click <em>"Create/Open Album Folder"</em>. This <strong>locks</strong> your
                 machine selection for the session.</li>
-            <li><strong>Step 4:</strong> Click <em>"Start Recording Clip"</em> to begin capturing video, inputs, and
+            <li><strong>Step 4:</strong> Click <em>"Start Recording Clickie"</em> to begin capturing video, inputs, and
                 states. The mouse will be automatically locked to the emulator.</li>
             <li><strong>Step 5:</strong> Interact! (<strong>ESC</strong> to unlock mouse if needed). Click
-                <em>"Stop"</em> when done.</li>
-            <li><strong>⚠️ Note:</strong> Finalizing a clip involves heavy compression and may take over a minute.</li>
+                <em>"Stop"</em> when done. This will finalize and save the clickie to your album folder. </li> 
+            <li><strong>⚠️ Note:</strong> Finalizing a clickie involves heavy compression and may take over a minute.</li>
         </ul>
     </div>
 
@@ -326,7 +326,7 @@
             <option value="android">Android x86</option>
         </select>
         <input id="save" type="button" value="📂 Create/Open Album Folder" disabled />
-        <input id="record" type="button" value="🔴 Start Recording Clip" disabled />
+        <input id="record" type="button" value="🔴 Start Recording Clickie" disabled />
 
         <div style="flex-grow: 1;"></div> <label
             style="font-weight: bold; color: #555; margin-left: 10px;">Scale:</label>
