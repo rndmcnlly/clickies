@@ -13,6 +13,24 @@ class AlbumCapturer {
     constructor(emulator, v86_specs) {
         this.emulator = emulator;
         this.v86_specs = v86_specs;
+
+        const MB = 1024 * 1024;
+        
+        switch (v86_specs.memory_size) {
+            case 32 * MB:  // DSL
+                this.minFreeSpace = 170 * MB;
+                break;
+            case 64 * MB:  // MS-DOS
+                this.minFreeSpace = 200 * MB;
+                break;
+            case 256 * MB: // Android
+                this.minFreeSpace = 630 * MB;
+                break;
+            default:
+                this.minFreeSpace = 200 * MB; // Safe default
+                break;
+        }
+
         this.canvas = null;
         this.keycodes = {};
 
@@ -33,6 +51,7 @@ class AlbumCapturer {
         this.isRecording = false;
         this.guid = null;
         this.startedRecording = null;
+        this.onQuotaExceeded = null;
     }
 
     /**
@@ -194,16 +213,18 @@ class AlbumCapturer {
             await writableManifest.close();
             
             console.log("Clip saved successfully.");
-
+            return true;
         } catch (e) {
             console.error("Failed to stop recording:", e);
+            alert("Error saving recording: " + e.message); // Alert the user
+            return false; // <--- Return FALSE on failure
+        } finally {
+            // Reset state
+            this.isRecording = false;
+            this.guid = null;
+            this.startedRecording = null;
+            this.currentFolder = null;
         }
-
-        // Reset state
-        this.isRecording = false;
-        this.guid = null;
-        this.startedRecording = null;
-        this.currentFolder = null;
     }
 
     // --- Private Methods ---
@@ -309,18 +330,49 @@ class AlbumCapturer {
      * @private
      */
     async _saveState() {
+        if (navigator.storage && navigator.storage.estimate) {
+            const estimate = await navigator.storage.estimate();
+            const remaining = estimate.quota - estimate.usage;
+            
+            // Stop if less than 200MB remaining
+            if (remaining < this.minFreeSpace) {
+                console.warn(`Low storage (${(remaining/1024/1024).toFixed(0)}MB). Triggering quota exceeded handler.`);
+                
+                if (this.onQuotaExceeded) {
+                    // Trigger the callback
+                    this.onQuotaExceeded(); 
+                }
+                
+                clearInterval(this.saveStateInterval); // Stop saving immediately
+                return;
+            }
+        }
+
         const i = this.stateSequenceFilenames.length;
         const filename = `v86state (${i}).bin`;
-        this.stateSequenceFilenames.push(filename);
+        try {
+            // 3. Perform the slow operations
+            const data = await this.emulator.save_state();
+            const fileHandle = await this.privateDirHandle.getFileHandle(filename, { create: true });
+            const writable = await fileHandle.createWritable();
+            await writable.write(data);
+            await writable.close();
 
-        // Save index instead of filename for the player
-        this._appendStimulusEvent({ name: "save-state", index: i });
+            // 4. SUCCESS! Now (and only now) do we add it to the official list.
+            // This guarantees the encoder never sees a broken file.
+            this.stateSequenceFilenames.push(filename);
+            
+            // Optional: Log the event only on success
+            this._appendStimulusEvent({ name: "save-state", index: i });
 
-        const data = await this.emulator.save_state();
-        const fileHandle = await this.privateDirHandle.getFileHandle(filename, { create: true });
-        const writable = await fileHandle.createWritable();
-        await writable.write(data);
-        await writable.close();
+        } catch (e) {
+            console.warn(`Failed to save state ${i}:`, e);
+            // If it fails, we do NOTHING. The state is skipped.
+            // The encoder will simply encode states 1..10, skip 11, and continue with 12..26.
+            
+            // Attempt cleanup of the partial file
+            try { await this.privateDirHandle.removeEntry(filename); } catch (_) {}
+        }
     }
 
     /**
@@ -330,6 +382,8 @@ class AlbumCapturer {
     async _startStateRecording() {
         this.privateDirHandle = await navigator.storage.getDirectory();
         this.stateSequenceFilenames = [];
+        // this.nextStateIndex = 0;
+
         await this._saveState(); // Save initial state
         this.saveStateInterval = setInterval(() => this._saveState(), 1000);
     }

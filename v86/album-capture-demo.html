@@ -25,6 +25,48 @@
         "use strict";
 
         window.onload = function () {
+            // --- 0.1 Storage Quota Check ---
+            async function checkStorageQuota() {
+                if (navigator.storage && navigator.storage.estimate) {
+                    try {
+                        const { quota } = await navigator.storage.estimate();
+                        const quotaMB = (quota / 1024 / 1024).toFixed(0);
+                        const quotaGB = (quota / 1024 / 1024 / 1024).toFixed(2);
+
+                        console.log(`Storage Quota: ${quotaMB} MB`);
+
+                        // Threshold: Warn if less than 2GB (Incognito usually has ~100MB - 300MB)
+                        if (quota < 2 * 1024 * 1024 * 1024) {
+                            const warningBox = document.createElement('div');
+                            warningBox.style.backgroundColor = '#ffdddd';
+                            warningBox.style.borderLeft = '6px solid #f44336';
+                            warningBox.style.padding = '15px';
+                            warningBox.style.marginBottom = '20px';
+                            warningBox.innerHTML = `
+                                <strong>⚠️ Low Storage Quota Detected (${quotaMB} MiB)</strong><br>
+                                Your browser is limiting storage space. This usually happens in 
+                                <strong>Incognito / Private Mode</strong> or if your disk is full.<br>
+                                <br>
+                                Recording requires ~2GiB. Please switch to a normal window or clear disk space to avoid crashes.
+                            `;
+                            
+                            // Insert warning at the top of the controls
+                            const controls = document.getElementById('controls');
+                            controls.parentNode.insertBefore(warningBox, controls);
+                            
+                            // Optional: Disable the record button to prevent the crash
+                            document.getElementById('record').disabled = true;
+                            document.getElementById('status').textContent = "Error: Insufficient storage quota.";
+                            document.getElementById('status').style.color = "red";
+                        }
+                    } catch (err) {
+                        console.warn("Could not check storage quota:", err);
+                    }
+                }
+            }
+
+            checkStorageQuota();
+
             // --- 1. UI References (Moved to top) ---
             const statusLabel = document.getElementById("status");
             const screenContainer = document.getElementById("screen_container");
@@ -147,6 +189,38 @@
                     emulator = window.emulator = new V86(runtimeSpecs);
                     capturer = new AlbumCapturer(emulator, specs);
 
+                    // Set up quota exceeded callback
+                    capturer.onQuotaExceeded = async () => {
+                        statusLabel.textContent = "⚠️ Storage quota exceeded! Stopping recording and saving...";
+                        statusLabel.style.color = "#e67e22";
+                        recordButton.disabled = true;
+                        recordButton.classList.remove("recording");
+                        recordButton.value = "⏳ Finalizing clickie (quota exceeded)...";
+
+                        const onProgress = (current, total) => {
+                            const percent = Math.round((current / total) * 100);
+                            statusLabel.textContent = `⚠️ Quota exceeded! Compressing state ${current} of ${total} (${percent}%)`;
+                            statusLabel.style.color = "#e67e22";
+                        };
+
+                        // Wait for stopRecording to complete
+                        const success = await capturer.stopRecording(onProgress);
+
+                        recordButton.disabled = false;
+
+                        if (success) {
+                            recordButton.value = "🔴 Start Recording Another Clickie";
+                            statusLabel.textContent = "⚠️ Clickie saved (stopped early due to quota). Ready for next.";
+                            statusLabel.style.color = "#e67e22";
+                            console.log("Recording stopped due to quota and clickie finalized.");
+                        } else {
+                            recordButton.value = "🔴 Start Recording Clickie";
+                            statusLabel.textContent = "❌ Save failed after quota exceeded. See console for details.";
+                            statusLabel.style.color = "red";
+                            console.log("Recording stopped due to quota but failed to save clickie.");
+                        }
+                    };
+
                     emulator.add_listener("emulator-error", (err) => {
                         console.error("[V86] Emulator error:", err);
                         statusLabel.textContent = "Error: " + (err.message || "Check console");
@@ -260,17 +334,34 @@
                         statusLabel.style.color = "#e67e22"; // Orange color
                     };
 
-                    await capturer.stopRecording(onProgress);
+                    const success = await capturer.stopRecording(onProgress);
 
                     recordButton.disabled = false;
-                    recordButton.value = "🔴 Start Recording Another Clickie";
-                    statusLabel.textContent = "Clickie saved! Ready for next.";
-                    console.log("Recording stopped and clickie finalized.");
+
+                    if (success) {
+                        recordButton.value = "🔴 Start Recording Another Clickie";
+                        statusLabel.textContent = "Clickie saved! Ready for next.";
+                        statusLabel.style.color = "#28a745";
+                        console.log("Recording stopped and clickie finalized.");
+                    } else {
+                        recordButton.value = "🔴 Start Recording Clickie";
+                        statusLabel.textContent = "Save failed. See console for details.";
+                        statusLabel.style.color = "red";
+                        console.log("Recording stopped but failed to save clickie.");
+                    }
 
                 } else {
                     statusLabel.textContent = "Recording... (Mouse locked)";
                     statusLabel.style.color = "#dc3545";
                     emulator.lock_mouse();
+
+                    capturer.onQuotaExceeded = () => {
+                        console.warn("Storage quota exceeded limit. Stopping recording.");
+                        alert("Recording stopped automatically to prevent data loss (Disk Full).");
+                        // Trigger the stop logic as if the user clicked it
+                        recordButton.click();
+                    };
+
                     await capturer.startRecording();
                     recordButton.value = "⏹ Stop Recording";
                     recordButton.classList.add("recording");
