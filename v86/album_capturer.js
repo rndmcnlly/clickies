@@ -172,6 +172,8 @@ class AlbumCapturer {
         
         console.log("Stopping recording...");
 
+        let clickie_name = prompt("Clickie Name:");
+
         try {
             // Finalize recordings
             const stimulusContent = this._finishInputRecording();
@@ -206,6 +208,7 @@ class AlbumCapturer {
             manifest.clips.push({
                 id: this.guid,
                 timestamp: this.startedRecording,
+                name: clickie_name,
             });
 
             const writableManifest = await manifestHandle.createWritable();
