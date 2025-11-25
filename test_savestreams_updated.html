@@ -321,7 +321,7 @@
       globalAPIs = {
         padTo, splitV86Savestate, recombineV86Savestate,
         makeAlignedBufferBlock, makeUnalignedBufferBlock, hashBlock,
-        encode, decode, decodeLen, decodeOne, trim,
+        encode, decode, encodeStreaming, decodeStreaming, decodeLen, decodeOne, trim,
         textEncoder, textDecoder
       };
 
@@ -423,6 +423,19 @@
           
           assert(globalEncodedSavestream instanceof Uint8Array, "Encoded savestream is Uint8Array");
           assert(globalEncodedSavestream.length > 0, "Encoded savestream is not empty");
+        },
+
+        "encodeStreaming (Public API, Real Data)": async () => {
+          const { encode } = globalAPIs;
+          assert(globalSavestates.length > 0, "Must have at least 1 savestate");
+          
+          let numEncodedChunks = 0;
+          for await (const chunk of await window.v86Savestream.encodeStreaming(globalSavestates)) {
+            numEncodedChunks++;
+            log(`   Encoded chunk ${numEncodedChunks} size: ${chunk.length} bytes`);
+          }
+          
+          assert(numEncodedChunks == globalSavestates.length, "encodeStreaming yields correct number of chunks");
         },
 
         "decodeLen (Public API, Real Data)": async () => {
@@ -561,6 +574,24 @@
           
           for(let i = 0; i < globalSavestates.length; i++) {
               assertArraysEqual(decoded_savestates[i], globalSavestates[i], `Roundtrip ${i}: encode + decode matches original`);
+          }
+        },
+
+        "encodeStream + decodeStream (Roundtrip)": async () => {
+          const { encodeStreaming, decodeStreaming } = globalAPIs;
+
+
+          async function* stateStreamGenerator() {
+            for (const state of globalSavestates) {
+              await new Promise(r => setTimeout(r, 100)); // Delay for animation
+              yield state;
+            }
+          }
+
+          let index = 0;
+          for await (const state of decodeStreaming(encodeStreaming(stateStreamGenerator()))) {
+            assertArraysEqual(state, globalSavestates[index], `Roundtrip ${index}: encodeStreaming + decodeStreaming matches original`);
+            index++;
           }
         },
 

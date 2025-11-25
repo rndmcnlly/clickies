@@ -247,6 +247,89 @@ async function encode(savestatesIterator, {blockSize = 256, superBlockMultiple =
     return MessagePack.encode(incrementalSaves);
 }
 
+// encode a sequence of v86 savestates (async generator version)
+async function* encodeStreaming(savestatesIterator, {blockSize = 256, superBlockMultiple = 256, onProgress = null} = {}) {
+
+    const superBlockSize = blockSize * superBlockMultiple;
+    const zeroBlock = new Uint8Array(blockSize);
+    const zeroSuperBlock = new Uint8Array(superBlockSize);
+
+    // Use numeric hashes for faster Map lookups (numbers are faster than strings)
+    const knownBlocks = new Map([[hashBlock(zeroBlock), 0]]);
+    const knownSuperBlocks = new Map([[hashBlock(zeroSuperBlock), 0]]);
+    let prevInfo = {};
+
+    // Reuse TextEncoder/Decoder instances (significant performance gain)
+    const textDecoder = new TextDecoder("utf-8");
+    const textEncoder = new TextEncoder();
+
+    for await (const savestate of savestatesIterator) {
+        const { headerBlock, infoBlock, bufferBlock } = splitV86Savestate(savestate);
+        
+        // Parse Info ONCE (reuse decoder)
+        const infoJson = JSON.parse(textDecoder.decode(infoBlock));
+
+        // Create aligned block AND pad to superBlockSize in one go
+        const alignedBufferBlock = makeAlignedBufferBlock(infoJson, bufferBlock, blockSize, superBlockSize);
+
+        const superIdSequence = [];
+        const newSuperBlocks = new Map();
+        const newBlocks = new Map();
+
+        // Process superblocks directly with offsets (avoids array allocation)
+        for (let superOffset = 0; superOffset < alignedBufferBlock.length; superOffset += superBlockSize) {
+            const superBlock = alignedBufferBlock.subarray(superOffset, superOffset + superBlockSize);
+            const superBlockKey = hashBlock(superBlock);
+            
+            if (!knownSuperBlocks.has(superBlockKey)) {
+                const superBlockId = knownSuperBlocks.size;
+                knownSuperBlocks.set(superBlockKey, superBlockId);
+
+                const blockIds = [];
+                for (let blockOffset = 0; blockOffset < superBlock.length; blockOffset += blockSize) {
+                    const block = superBlock.subarray(blockOffset, blockOffset + blockSize);
+                    const blockKey = hashBlock(block);
+                    if (!knownBlocks.has(blockKey)) {
+                        const blockId = knownBlocks.size;
+                        knownBlocks.set(blockKey, blockId);
+                        newBlocks.set(blockId, block.slice());
+                    }
+                    blockIds.push(knownBlocks.get(blockKey));
+                }
+                newSuperBlocks.set(superBlockId, blockIds);
+            }
+            superIdSequence.push(knownSuperBlocks.get(superBlockKey));
+
+            await new Promise(resolve => setTimeout(resolve, 0));
+        }
+
+        // delta encode the info block (reuse encoder)
+        const infoDiff = compare(prevInfo, infoJson);
+        const encodedInfo = textEncoder.encode(JSON.stringify(infoDiff));
+        prevInfo = infoJson;
+
+        // OPTIMIZED: Convert Maps to objects more efficiently (avoid Object.fromEntries overhead)
+        const newBlocksObj = {};
+        for (const [id, data] of newBlocks) {
+            newBlocksObj[id] = data;
+        }
+        const newSuperBlocksObj = {};
+        for (const [id, blockIds] of newSuperBlocks) {
+            newSuperBlocksObj[id] = blockIds;
+        }
+
+        const incrementalSave = {
+            headerBlock: headerBlock.slice(),
+            infoPatch: encodedInfo,
+            newBlocks: newBlocksObj,
+            newSuperBlocks: newSuperBlocksObj,
+            superIdSequence
+        }
+
+        yield MessagePack.encode(incrementalSave);
+    }
+}
+
 // decode a savestream
 async function decode(savestream, blockSize = 256, superBlockMultiple = 256) {
     const incrementalSaves = MessagePack.decode(savestream);
@@ -303,6 +386,56 @@ async function decode(savestream, blockSize = 256, superBlockMultiple = 256) {
     return generateSaves();
 }
 
+// decode a savestream
+async function* decodeStreaming(savestream, blockSize = 256, superBlockMultiple = 256) {
+    const superBlockSize = blockSize * superBlockMultiple;
+    const textDecoder = new TextDecoder("utf-8");
+    const textEncoder = new TextEncoder();
+    const zeroBlock = new Uint8Array(blockSize);
+
+    const knownBlocks = new Map([[0, zeroBlock]]);
+    const knownSuperBlocks = new Map([[0, Array(superBlockMultiple).fill(0)]]);
+
+    let prevInfo = {};
+
+    for await (const save of MessagePack.decodeMultiStream(savestream)) {
+        const { headerBlock, infoPatch, newBlocks, newSuperBlocks, superIdSequence } = save;
+
+        for (const blockId in newBlocks) {
+            knownBlocks.set(Number(blockId), newBlocks[blockId]);
+        }
+
+        for (const superBlockId in newSuperBlocks) {
+            knownSuperBlocks.set(Number(superBlockId), newSuperBlocks[superBlockId]);
+        }
+
+        // Reuse decoder/encoder
+        const delta = JSON.parse(textDecoder.decode(infoPatch));
+        const currentInfo = applyPatch(prevInfo, delta).newDocument;
+        prevInfo = currentInfo;
+
+        const infoBlock = textEncoder.encode(JSON.stringify(currentInfo));
+
+        // Reconstruct full buffer
+        const alignedBufferBlock = new Uint8Array(superIdSequence.length * superBlockSize);
+        let offset = 0;
+
+        for (const superBlockId of superIdSequence) {
+            const blockIds = knownSuperBlocks.get(superBlockId);
+            for (const blockId of blockIds) {
+                const blockData = knownBlocks.get(blockId);
+                alignedBufferBlock.set(blockData, offset);
+                offset += blockSize;
+            }
+        }
+        
+        // Convert back to V86 format (passing currentInfo object avoids re-parsing, but pass textDecoder for potential reuse)
+        const unalignedBufferBlock = makeUnalignedBufferBlock(currentInfo, alignedBufferBlock, blockSize, textDecoder);
+
+        yield recombineV86Savestate(headerBlock, infoBlock, unalignedBufferBlock);
+    }
+}
+
 // trim a savestream
 async function trim(savestream, startIndex, endIndex) {
     if (startIndex < 0) throw new Error("Invalid start index");
@@ -343,6 +476,8 @@ async function decodeLen(savestream) {
 
 window.v86Savestream = {
   encode,
+  encodeStreaming,
+  decodeStreaming,
   decode,
   decodeOne,
   trim,
