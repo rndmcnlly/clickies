@@ -172,7 +172,7 @@ class AlbumCapturer {
         
         console.log("Stopping recording...");
 
-        let clickie_name = prompt("Clickie Name:");
+        let clickieName = prompt("Clickie Name:") || "";
 
         try {
             // Finalize recordings
