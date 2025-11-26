@@ -208,7 +208,7 @@ class AlbumCapturer {
             manifest.clips.push({
                 id: this.guid,
                 timestamp: this.startedRecording,
-                name: clickie_name,
+                name: clickieName,
             });
 
             const writableManifest = await manifestHandle.createWritable();
