@@ -299,8 +299,6 @@ async function* encodeStreaming(savestatesIterator, {blockSize = 256, superBlock
                 newSuperBlocks.set(superBlockId, blockIds);
             }
             superIdSequence.push(knownSuperBlocks.get(superBlockKey));
-
-            await new Promise(resolve => setTimeout(resolve, 0));
         }
 
         // delta encode the info block (reuse encoder)
