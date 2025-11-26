@@ -85,8 +85,8 @@
                     for (let clip of manifest.clips) {
                         const option = document.createElement("option");
                         option.textContent = "Clickie@" + clip["timestamp"];
-                        if("name" in clip) {
-                            option.textContent += " (" + clip["name"] + ")";
+                        if (clip.name) {
+                            option.textContent += ` (${clip.name})`;
                         }
                         option.value = clip.id;
                         dropdown.appendChild(option);
