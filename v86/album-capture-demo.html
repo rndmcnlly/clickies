@@ -204,13 +204,27 @@
                         };
 
                         // Wait for stopRecording to complete
+                        const encodingStartTime = Date.now();
                         const success = await capturer.stopRecording(onProgress);
+                        const encodingElapsedMs = Date.now() - encodingStartTime;
 
                         recordButton.disabled = false;
 
                         if (success) {
+                            // Format encoding time
+                            const encodingSeconds = (encodingElapsedMs / 1000).toFixed(1);
+                            const encodingMinutes = Math.floor(encodingElapsedMs / 60000);
+                            const remainingSeconds = ((encodingElapsedMs % 60000) / 1000).toFixed(1);
+                            
+                            let encodingTimeText;
+                            if (encodingMinutes > 0) {
+                                encodingTimeText = `${encodingMinutes}m ${remainingSeconds}s`;
+                            } else {
+                                encodingTimeText = `${encodingSeconds}s`;
+                            }
+                            
                             recordButton.value = "🔴 Start Recording Another Clickie";
-                            statusLabel.textContent = "⚠️ Clickie saved (stopped early due to quota). Ready for next.";
+                            statusLabel.textContent = `⚠️ Clickie saved (stopped early due to quota). Ready for next. (Encoding took ${encodingTimeText})`;
                             statusLabel.style.color = "#e67e22";
                             console.log("Recording stopped due to quota and clickie finalized.");
                         } else {
@@ -334,13 +348,27 @@
                         statusLabel.style.color = "#e67e22"; // Orange color
                     };
 
+                    const encodingStartTime = Date.now();
                     const success = await capturer.stopRecording(onProgress);
+                    const encodingElapsedMs = Date.now() - encodingStartTime;
 
                     recordButton.disabled = false;
 
                     if (success) {
+                        // Format encoding time
+                        const encodingSeconds = (encodingElapsedMs / 1000).toFixed(1);
+                        const encodingMinutes = Math.floor(encodingElapsedMs / 60000);
+                        const remainingSeconds = ((encodingElapsedMs % 60000) / 1000).toFixed(1);
+                        
+                        let encodingTimeText;
+                        if (encodingMinutes > 0) {
+                            encodingTimeText = `${encodingMinutes}m ${remainingSeconds}s`;
+                        } else {
+                            encodingTimeText = `${encodingSeconds}s`;
+                        }
+                        
                         recordButton.value = "🔴 Start Recording Another Clickie";
-                        statusLabel.textContent = "Clickie saved! Ready for next.";
+                        statusLabel.textContent = `Clickie saved! Ready for next. (Encoding took ${encodingTimeText})`;
                         statusLabel.style.color = "#28a745";
                         console.log("Recording stopped and clickie finalized.");
                     } else {
